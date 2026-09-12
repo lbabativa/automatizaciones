@@ -1,0 +1,27 @@
+{
+  "name": "automatizaciones",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Plataforma de automatizaciones (RPA) de StartIA. Núcleo multicliente y módulos independientes por sector, portal y proceso.",
+  "type": "module",
+  "workspaces": [
+    "core",
+    "api",
+    "worker",
+    "modulos/registro",
+    "modulos/*/*"
+  ],
+  "scripts": {
+    "api": "npm run dev -w api",
+    "worker": "npm run dev -w worker",
+    "sesion": "npm run sesion -w worker --",
+    "cliente:crear": "tsx core/scripts/crear-cliente.ts",
+    "cliente:rotar-clave": "tsx core/scripts/rotar-clave.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}

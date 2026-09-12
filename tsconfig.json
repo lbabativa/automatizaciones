@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@startia/core": ["core/src/index.ts"],
+      "@startia/modulos": ["modulos/registro/src/index.ts"],
+      "@startia/modulo-sanitas-autorizaciones": ["modulos/salud/sanitas-autorizaciones/src/index.ts"]
+    }
+  },
+  "include": ["core/**/*.ts", "api/**/*.ts", "worker/**/*.ts", "modulos/**/*.ts"],
+  "exclude": ["**/node_modules", "**/dist"]
+}

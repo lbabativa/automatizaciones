@@ -1,0 +1,31 @@
+import mongoose, { Schema, type InferSchemaType } from 'mongoose';
+
+const ModuloClienteSchema = new Schema(
+  {
+    nombre: { type: String, required: true },
+    activo: { type: Boolean, default: true },
+    config: { type: Schema.Types.Mixed, default: {} },
+  },
+  { _id: false },
+);
+
+const ClienteSchema = new Schema(
+  {
+    slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    nombre: { type: String, required: true },
+    nit: { type: String },
+    activo: { type: Boolean, default: true },
+    apiKeyHash: { type: String, index: true },
+    apiKeyPrefijo: { type: String },
+    limitePorMinuto: { type: Number, default: 30 },
+    modulos: { type: [ModuloClienteSchema], default: [] },
+    /** { portal: { campo: valorCifrado } } */
+    credenciales: { type: Schema.Types.Mixed, default: {} },
+  },
+  { timestamps: true, collection: 'clientes' },
+);
+
+export type ModuloCliente = InferSchemaType<typeof ModuloClienteSchema>;
+export type ClienteDoc = InferSchemaType<typeof ClienteSchema> & { _id: mongoose.Types.ObjectId };
+
+export const Cliente = mongoose.models.Cliente ?? mongoose.model('Cliente', ClienteSchema);

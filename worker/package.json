@@ -1,0 +1,17 @@
+{
+  "name": "worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "start": "tsx src/index.ts",
+    "sesion": "tsx src/sesion.ts"
+  },
+  "dependencies": {
+    "@startia/core": "*",
+    "@startia/modulos": "*",
+    "cloudinary": "^2.7.0",
+    "playwright": "^1.55.0"
+  }
+}
