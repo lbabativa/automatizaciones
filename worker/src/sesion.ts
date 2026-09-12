@@ -9,7 +9,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { cerrarDb, Cliente, conectarDb } from '@startia/core';
+import { cerrarDb, Cliente, conectarDb, rutaProyecto } from '@startia/core';
 import { registro } from '@startia/modulos';
 import type { Page } from 'playwright';
 import { cerrarTodo, guardarSesion, obtenerContexto } from './navegador.js';
@@ -38,7 +38,7 @@ try {
 
   console.log(`\nInicie sesión en ${modulo.urlInicio} en la ventana que se abrió.`);
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const dirDiag = resolve('inspeccion', portal);
+  const dirDiag = rutaProyecto('inspeccion', portal);
   let intento = 0;
   let guardada = false;
 

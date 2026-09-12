@@ -7,7 +7,8 @@
     "dev": "tsx src/index.ts",
     "start": "tsx src/index.ts",
     "sesion": "tsx src/sesion.ts",
-    "inspeccionar": "tsx src/inspeccionar.ts"
+    "inspeccionar": "tsx src/inspeccionar.ts",
+    "probar": "tsx src/probar.ts"
   },
   "dependencies": {
     "@startia/core": "*",

@@ -10,7 +10,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { cerrarDb, Cliente, conectarDb } from '@startia/core';
+import { cerrarDb, Cliente, conectarDb, rutaProyecto } from '@startia/core';
 import { registro } from '@startia/modulos';
 import { cerrarTodo, obtenerContexto } from './navegador.js';
 
@@ -31,7 +31,7 @@ try {
     console.error(`No existe el cliente "${clienteSlug}"`);
     process.exit(1);
   }
-  const dir = resolve('inspeccion', portal);
+  const dir = rutaProyecto('inspeccion', portal);
   await mkdir(dir, { recursive: true });
   const ctx = await obtenerContexto(clienteSlug, portal, false);
   const page = ctx.pages()[0] ?? (await ctx.newPage());

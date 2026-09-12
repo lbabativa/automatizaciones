@@ -1,6 +1,5 @@
-import { cifrar, Sesion } from '@startia/core';
+import { cifrar, rutaProyecto, Sesion } from '@startia/core';
 import { mkdir } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import { chromium, type BrowserContext } from 'playwright';
 
 /**
@@ -17,7 +16,7 @@ const contextos = new Map<string, BrowserContext>();
 const clave = (clienteSlug: string, portal: string) => `${clienteSlug}::${portal}`;
 
 function dirPerfil(clienteSlug: string, portal: string): string {
-  return resolve(process.env.PERFILES_DIR ?? './perfiles', clienteSlug, portal);
+  return rutaProyecto(process.env.PERFILES_DIR ?? './perfiles', clienteSlug, portal);
 }
 
 export async function obtenerContexto(clienteSlug: string, portal: string, headless: boolean): Promise<BrowserContext> {

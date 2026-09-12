@@ -1,5 +1,6 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { rutaProyecto } from '@startia/core';
 import { v2 as cloudinary } from 'cloudinary';
 import type { Page } from 'playwright';
 
@@ -22,10 +23,9 @@ export async function capturarEvidencia(page: Page, clienteSlug: string, trabajo
     });
     return subido.secure_url;
   }
-  const dir = resolve(process.env.EVIDENCIAS_DIR ?? './evidencias', clienteSlug, trabajoId);
+  const dir = rutaProyecto(process.env.EVIDENCIAS_DIR ?? './evidencias', clienteSlug, trabajoId);
   await mkdir(dir, { recursive: true });
   const ruta = resolve(dir, `${nombre}.png`);
-  const { writeFile } = await import('node:fs/promises');
   await writeFile(ruta, buffer);
   return ruta;
 }

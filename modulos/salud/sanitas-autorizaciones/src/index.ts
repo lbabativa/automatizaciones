@@ -43,27 +43,37 @@ export default definirModulo({
     return dentroDelValidador ? textoSesion || cuerpo.length > 0 : textoSesion;
   },
 
-  // VERIFICAR EN FASE 0: la pantalla de login no aparece en el video de referencia.
-  // Si tiene captcha o segundo factor, este método debe lanzar ErrorSesion y la
-  // sesión se abre manualmente con `npm run sesion -- <cliente> sanitas`.
+  /**
+   * Login único de Colsanitas (CAS). Formulario simple: #username, #password y botón "Ingresar".
+   * Verificado el 12/09/2026 contra portal.colsanitas.com/sso/login. Sin captcha en el formulario;
+   * la protección anti-bots (Radware) actúa antes y se resuelve una vez con `npm run sesion`.
+   */
   async iniciarSesion(page: Page, credenciales: Record<string, string>): Promise<void> {
-    const usuario = page.getByLabel(/usuario|login/i).first().or(page.locator('input[type="text"]').first());
-    const clave = page.getByLabel(/contraseña|clave|password/i).first().or(page.locator('input[type="password"]').first());
-
+    if (!/\/sso\/login/i.test(page.url())) {
+      await page.goto(URL_LOGIN, { waitUntil: 'domcontentloaded' });
+    }
+    if (/perfdrive\.com/i.test(page.url()) || (await page.title().catch(() => '')).toLowerCase().includes('captcha')) {
+      throw new ErrorSesion('El portal de Colsanitas muestra el reto anti-bots. Ábralo una vez con: npm run sesion -- <cliente> sanitas');
+    }
+    const usuario = page.locator('#username');
+    const clave = page.locator('#password');
     if (!(await clave.isVisible({ timeout: 10_000 }).catch(() => false))) {
-      throw new ErrorSesion('No se encontró el formulario de inicio de sesión del Validador Sanitas');
+      throw new ErrorSesion('No se encontró el formulario de inicio de sesión de Colsanitas (#username / #password)');
     }
-    if (await page.locator('iframe[src*="recaptcha"], .g-recaptcha, img[src*="captcha" i]').first().isVisible().catch(() => false)) {
-      throw new ErrorSesion('El login del Validador Sanitas tiene captcha. Abra la sesión manualmente con: npm run sesion -- <cliente> sanitas');
-    }
-
     await usuario.fill(credenciales.usuario);
     await clave.fill(credenciales.password);
-    await page.getByRole('button', { name: /ingresar|entrar|iniciar/i }).first().or(clave).press('Enter');
-    await page.waitForLoadState('networkidle');
+    await Promise.all([
+      page.waitForURL(/appcore\.colsanitas\.com\/ValidadorDerechos|\/sso\/login/i, { timeout: 30_000 }).catch(() => undefined),
+      page.locator('input[name="submit"][value="Ingresar"]').click(),
+    ]);
+    await page.waitForLoadState('networkidle').catch(() => undefined);
 
+    if (/\/sso\/login/i.test(page.url())) {
+      const aviso = (await page.locator('#status, .errors, #msg, .error').first().innerText().catch(() => '')).trim();
+      throw new ErrorSesion(`Colsanitas no aceptó las credenciales${aviso ? `: ${aviso}` : ''}`);
+    }
     if (!(await this.sesionValida(page))) {
-      throw new ErrorSesion('El Validador Sanitas no aceptó las credenciales o cambió la pantalla de ingreso');
+      throw new ErrorSesion(`Tras el login el portal no mostró el validador (URL: ${page.url()})`);
     }
   },
 
