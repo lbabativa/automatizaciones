@@ -132,7 +132,7 @@ Marcados con `VERIFICAR` en `modulos/salud/sanitas-autorizaciones/src`:
 Grabar el flujo real:
 
 ```bash
-npx playwright codegen https://appcore.colsanitas.com/ValidadorDerechos/
+npx playwright codegen "https://portal.colsanitas.com/sso/login?service=https%3A%2F%2Fappcore.colsanitas.com%2FValidadorDerechos%2Fpages%2Fgestion%2FValidacionDerechos.seam"
 ```
 
 ## Protección anti-bots del portal Sanitas

@@ -18,7 +18,10 @@ export const ParametrosSanitas = z.object({
 
 export type ParametrosSanitas = z.infer<typeof ParametrosSanitas>;
 
-export const URL_VALIDADOR = 'https://appcore.colsanitas.com/ValidadorDerechos/';
+/** Página de trabajo del validador. El cid lo asigna el portal en cada sesión, no se fija. */
+export const URL_VALIDADOR = 'https://appcore.colsanitas.com/ValidadorDerechos/pages/gestion/ValidacionDerechos.seam';
+/** Login único (SSO/CAS) de Colsanitas. Si ya hay sesión, redirige de inmediato al validador. */
+export const URL_LOGIN = 'https://portal.colsanitas.com/sso/login?service=' + encodeURIComponent(URL_VALIDADOR);
 
 export default definirModulo({
   nombre: 'sanitas-autorizaciones',
@@ -26,7 +29,7 @@ export default definirModulo({
   portal: 'sanitas',
   version: '0.1.0',
   descripcion: 'Consulta afiliación, autorizaciones vigentes y copago de un paciente en el Validador de Usuarios Sanitas (Keralty).',
-  urlInicio: URL_VALIDADOR,
+  urlInicio: URL_LOGIN,
   parametros: ParametrosSanitas,
   credencialesRequeridas: ['usuario', 'password'],
 
