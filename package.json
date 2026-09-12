@@ -15,6 +15,7 @@
     "api": "npm run dev -w api",
     "worker": "npm run dev -w worker",
     "sesion": "npm run sesion -w worker --",
+    "inspeccionar": "npm run inspeccionar -w worker --",
     "cliente:crear": "tsx core/scripts/crear-cliente.ts",
     "cliente:rotar-clave": "tsx core/scripts/rotar-clave.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
