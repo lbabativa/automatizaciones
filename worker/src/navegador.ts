@@ -1,6 +1,6 @@
-import { cifrar, rutaProyecto, Sesion } from '@startia/core';
+import { cifrar, descifrar, rutaProyecto, Sesion } from '@startia/core';
 import { mkdir } from 'node:fs/promises';
-import { chromium, type BrowserContext } from 'playwright';
+import { chromium, type BrowserContext, type Cookie } from 'playwright';
 
 /**
  * Un perfil de navegador persistente por cliente y portal (cookies, storage y
@@ -35,6 +35,20 @@ export async function obtenerContexto(clienteSlug: string, portal: string, headl
     viewport: { width: 1366, height: 768 },
   });
   ctx.setDefaultTimeout(20_000);
+
+  // Chromium descarta las cookies de sesión (sin fecha de expiración, como JSESSIONID) al cerrar,
+  // así que el perfil en disco pierde la sesión entre corridas. Se reinyectan desde el respaldo
+  // cifrado en Mongo, que sí conserva la última sesión válida (manual o automática).
+  const sesion = await Sesion.findOne({ clienteSlug, portal, valida: true }).lean<{ storageStateCifrado: string }>();
+  if (sesion) {
+    try {
+      const estado = JSON.parse(descifrar(sesion.storageStateCifrado)) as { cookies?: Cookie[] };
+      if (estado.cookies?.length) await ctx.addCookies(estado.cookies);
+    } catch {
+      // Respaldo ilegible o cifrado con otra MASTER_KEY: se ignora y se hará login normal.
+    }
+  }
+
   ctx.on('close', () => contextos.delete(k));
   contextos.set(k, ctx);
   return ctx;
