@@ -51,6 +51,7 @@ curl https://<tu-proyecto>.vercel.app/v1/salud
 La consola de operador queda en `https://<tu-proyecto>.vercel.app/admin`.
 
 Notas de Vercel:
+- Proyecto: `startias-projects/startia-automatizaciones`. URL pública de producción: `https://startia-automatizaciones.vercel.app`. Las URLs de cada despliegue (`*-startias-projects.vercel.app`) están protegidas y redirigen al SSO de Vercel; para probar sin sesión usa el alias de producción.
 - El `vercel.json` ya declara la función y empaqueta el panel (`api/public`).
 - El worker, los perfiles y las evidencias quedan excluidos por `.vercelignore`.
 - Con la API remota, las capturas deben ir a **Cloudinary** (ver worker), porque Vercel no puede servir archivos del PC de la clínica.
