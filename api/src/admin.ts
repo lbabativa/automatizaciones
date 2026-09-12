@@ -6,6 +6,7 @@
  */
 import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Cliente, encolar, env, esperarResultado, rutaProyecto, Sesion, Trabajo, type ClienteDoc, type TrabajoDoc } from '@startia/core';
 import { listarModulos, obtenerModulo } from '@startia/modulos';
 import { Hono } from 'hono';
@@ -25,13 +26,22 @@ function claveOk(c: { req: { header: (n: string) => string | undefined; query: (
 }
 
 // El HTML del panel es público (no expone datos); las rutas de datos exigen la clave.
-admin.get('/', async (c) => {
-  try {
-    const html = await readFile(rutaProyecto('api', 'public', 'panel.html'), 'utf8');
-    return c.html(html);
-  } catch {
-    return c.text('No se encontró api/public/panel.html', 500);
+// Se busca junto al código (serverless) y desde la raíz del proyecto (local).
+async function leerPanel(): Promise<string | null> {
+  const aquí = fileURLToPath(new URL('.', import.meta.url));
+  const candidatos = [resolve(aquí, '..', 'public', 'panel.html'), resolve(aquí, 'public', 'panel.html'), rutaProyecto('api', 'public', 'panel.html')];
+  for (const ruta of candidatos) {
+    try {
+      return await readFile(ruta, 'utf8');
+    } catch {
+      /* siguiente candidato */
+    }
   }
+  return null;
+}
+admin.get('/', async (c) => {
+  const html = await leerPanel();
+  return html ? c.html(html) : c.text('No se encontró api/public/panel.html', 500);
 });
 
 admin.use('/api/*', async (c, next) => {

@@ -1,0 +1,7 @@
+# El worker corre localmente en la clínica, no en Vercel.
+worker
+perfiles
+inspeccion
+evidencias
+# Documentos y salidas locales
+*.log

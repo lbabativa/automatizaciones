@@ -1,6 +1,8 @@
-// Punto de entrada para Vercel (detección automática de Hono). En local se usa src/server.ts.
-import { conectarDb } from '@startia/core';
+// Punto de entrada serverless para Vercel. En local se usa src/server.ts.
+// La conexión a Mongo se asegura en el primer request desde src/app.ts.
+import { handle } from 'hono/vercel';
 import { app } from './src/app.js';
 
-await conectarDb();
-export default app;
+export const config = { runtime: 'nodejs' };
+
+export default handle(app);

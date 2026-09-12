@@ -1,4 +1,4 @@
-import { buscarEnCache, buscarEnCurso, encolar, envNum, esperarResultado, Trabajo, type TrabajoDoc } from '@startia/core';
+import { buscarEnCache, buscarEnCurso, conectarDb, encolar, envNum, esperarResultado, Trabajo, type TrabajoDoc } from '@startia/core';
 import { listarModulos, obtenerModulo } from '@startia/modulos';
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
@@ -9,6 +9,17 @@ import { autenticar, type Variables } from './auth.js';
 
 export const app = new Hono<{ Variables: Variables }>();
 app.use(logger());
+
+// En serverless (Vercel) cada invocación puede arrancar en frío: se asegura la
+// conexión a Mongo en la primera petición. conectarDb cachea la promesa.
+let dbLista: Promise<unknown> | null = null;
+app.use('*', async (_c, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    dbLista ??= conectarDb();
+    await dbLista;
+  }
+  await next();
+});
 
 // Consola de operador (panel web + su API interna con ADMIN_KEY).
 app.route('/admin', admin);
