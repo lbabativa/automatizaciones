@@ -2,12 +2,11 @@ import { config } from 'dotenv';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// Carga el .env de la raíz del monorepo sin importar desde qué paquete se ejecute.
-for (const candidato of [resolve(process.cwd(), '.env'), resolve(process.cwd(), '..', '.env'), resolve(process.cwd(), '..', '..', '.env')]) {
-  if (existsSync(candidato)) {
-    config({ path: candidato });
-    break;
-  }
+// Carga .env.local (prioridad) y luego .env desde la raíz del monorepo, sin importar desde qué paquete se ejecute.
+const raices = [process.cwd(), resolve(process.cwd(), '..'), resolve(process.cwd(), '..', '..')];
+for (const archivo of ['.env.local', '.env']) {
+  const ruta = raices.map((r) => resolve(r, archivo)).find((p) => existsSync(p));
+  if (ruta) config({ path: ruta });
 }
 
 export function env(nombre: string, porDefecto?: string): string {

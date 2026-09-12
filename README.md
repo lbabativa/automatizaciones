@@ -30,7 +30,7 @@ modulos/
 ```bash
 npm install
 npx playwright install chromium   # o definir CHROMIUM_PATH en .env apuntando a un chrome.exe propio
-cp .env.example .env      # completar MONGODB_URI y MASTER_KEY
+cp .env.example .env.local   # completar MONGODB_URI y MASTER_KEY (.env.local tiene prioridad sobre .env)
 ```
 
 Generar la clave maestra:
