@@ -34,14 +34,13 @@ export default definirModulo({
   credencialesRequeridas: ['usuario', 'password'],
 
   async sesionValida(page: Page): Promise<boolean> {
-    // Con sesión abierta el portal muestra la barra "Usuario: ... | Salir" y el panel de búsqueda.
-    const salir = page.getByText('Salir', { exact: true }).first();
-    const busqueda = page.getByText('Validación - búsqueda de Usuario').first();
-    const [a, b] = await Promise.all([
-      salir.isVisible({ timeout: 5_000 }).catch(() => false),
-      busqueda.isVisible({ timeout: 5_000 }).catch(() => false),
-    ]);
-    return a || b;
+    const url = page.url();
+    // Login del SSO o reto de Radware: no hay sesión.
+    if (/\/sso\/login/i.test(url) || /perfdrive\.com/i.test(url)) return false;
+    const dentroDelValidador = /appcore\.colsanitas\.com\/ValidadorDerechos/i.test(url);
+    const cuerpo = (await page.locator('body').innerText({ timeout: 5_000 }).catch(() => '')).toLowerCase();
+    const textoSesion = /\bsalir\b/.test(cuerpo) || /validaci[oó]n\s*-\s*b[uú]squeda/.test(cuerpo) || /usuario:\s*\d+/.test(cuerpo);
+    return dentroDelValidador ? textoSesion || cuerpo.length > 0 : textoSesion;
   },
 
   // VERIFICAR EN FASE 0: la pantalla de login no aparece en el video de referencia.
