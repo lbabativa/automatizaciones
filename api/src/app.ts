@@ -4,12 +4,16 @@ import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import mongoose from 'mongoose';
 import { z } from 'zod';
+import { admin } from './admin.js';
 import { autenticar, type Variables } from './auth.js';
 
 export const app = new Hono<{ Variables: Variables }>();
 app.use(logger());
 
-app.get('/', (c) => c.json({ servicio: 'startia-automatizaciones', version: '0.1.0' }));
+// Consola de operador (panel web + su API interna con ADMIN_KEY).
+app.route('/admin', admin);
+
+app.get('/', (c) => c.json({ servicio: 'startia-automatizaciones', version: '0.1.0', panel: '/admin' }));
 app.get('/v1/salud', async (c) => {
   const db = mongoose.connection.readyState === 1;
   const pendientes = db ? await Trabajo.countDocuments({ estado: 'pendiente' }) : null;
