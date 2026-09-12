@@ -9,6 +9,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { cerrarDb, Cliente, conectarDb, descifrar, env, ErrorNegocio, ErrorSesion, rutaProyecto, type ClienteDoc } from '@startia/core';
+import { asegurarSesion } from './sesionHelper.js';
 import { obtenerModulo } from '@startia/modulos';
 import { cerrarTodo, guardarSesion, obtenerContexto } from './navegador.js';
 
@@ -54,16 +55,8 @@ try {
 
   log(`Abriendo ${modulo.urlInicio}`);
   await page.goto(modulo.urlInicio, { waitUntil: 'networkidle' });
-  if (!(await modulo.sesionValida(page))) {
-    if (!modulo.iniciarSesion) throw new ErrorSesion('Sin sesión y el módulo no soporta login automático');
-    log('Sin sesión: iniciando sesión automáticamente');
-    await capturar('login');
-    await modulo.iniciarSesion(page, credenciales);
-    await guardarSesion(clienteSlug, modulo.portal, ctx, 'automatica');
-    log(`Sesión iniciada. URL: ${page.url()}`);
-  } else {
-    log(`Sesión vigente. URL: ${page.url()}`);
-  }
+  await asegurarSesion(modulo, ctx, page, credenciales, { headless: HEADLESS, log, clienteSlug });
+  log(`Sesión lista. URL: ${page.url()}`);
   await capturar('inicio');
 
   const inicio = Date.now();

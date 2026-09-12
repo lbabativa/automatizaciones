@@ -21,6 +21,7 @@ import {
   type TrabajoDoc,
 } from '@startia/core';
 import { obtenerModulo, registro } from '@startia/modulos';
+import { asegurarSesion } from './sesionHelper.js';
 import { capturarEvidencia } from './evidencias.js';
 import { cerrarTodo, guardarSesion, invalidarSesion, obtenerContexto } from './navegador.js';
 
@@ -73,12 +74,7 @@ async function procesar(trabajo: TrabajoDoc): Promise<void> {
 
   try {
     await page.goto(modulo.urlInicio, { waitUntil: 'networkidle' });
-    if (!(await modulo.sesionValida(page))) {
-      if (!modulo.iniciarSesion) throw new ErrorSesion(`No hay sesión válida de ${modulo.portal} para ${cliente.slug}. Ábrala con: npm run sesion -- ${cliente.slug} ${modulo.portal}`);
-      log(`Iniciando sesión en ${modulo.portal} para ${cliente.slug}`);
-      await modulo.iniciarSesion(page, credenciales);
-      await guardarSesion(cliente.slug, modulo.portal, contexto, 'automatica');
-    }
+    await asegurarSesion(modulo, contexto, page, credenciales, { headless: HEADLESS, log, clienteSlug: cliente.slug });
 
     const resultado = await modulo.ejecutar({ parametros: trabajo.parametros, credenciales, config: configModulo, page, capturar, log });
     await guardarSesion(cliente.slug, modulo.portal, contexto, 'automatica');
