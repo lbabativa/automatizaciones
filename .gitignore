@@ -8,3 +8,4 @@ sesiones/
 *.log
 .DS_Store
 .vercel/
+perfiles/

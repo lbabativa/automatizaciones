@@ -9,7 +9,7 @@ Primer cliente: CardioIB. Primer módulo: `salud/sanitas-autorizaciones`.
 ```
 core/       modelos (clientes, trabajos, sesiones), cola, cifrado, contrato de módulo
 api/        API HTTP (Hono). Recibe solicitudes, valida la clave del cliente y encola trabajos. Se despliega en Vercel.
-worker/     Proceso Playwright. Toma trabajos de la cola y ejecuta el módulo que toque. Corre en un PC o VPS.
+worker/     Proceso Playwright. Toma trabajos de la cola y ejecuta el módulo que toque. Corre en un PC con escritorio (ver "Protección anti-bots").
 modulos/
   registro/                        catálogo de módulos disponibles
   salud/sanitas-autorizaciones/    afiliación, autorizaciones y copago en el Validador Sanitas
@@ -29,7 +29,7 @@ modulos/
 
 ```bash
 npm install
-npx playwright install chromium
+npx playwright install chromium   # o definir CHROMIUM_PATH en .env apuntando a un chrome.exe propio
 cp .env.example .env      # completar MONGODB_URI y MASTER_KEY
 ```
 
@@ -135,7 +135,17 @@ Grabar el flujo real:
 npx playwright codegen https://appcore.colsanitas.com/ValidadorDerechos/
 ```
 
+## Protección anti-bots del portal Sanitas
+
+El Validador Sanitas está detrás de Radware Bot Manager. En la primera prueba (12/09/2026) un Chromium sin ventana fue desviado a una página de captcha de Radware antes de llegar al login. Por eso el worker:
+
+- Corre con ventana visible (`HEADLESS=false`) en un PC con escritorio, no en un servidor sin pantalla.
+- Usa un perfil de navegador persistente por cliente y portal (`PERFILES_DIR`), el mismo que abre `npm run sesion`. Una persona pasa el reto y el login una vez, y el worker sigue en ese perfil.
+- No intenta resolver ni evadir los retos. Si el portal vuelve a pedirlos, el trabajo falla con `SESION_INVALIDA` y hay que repetir `npm run sesion`.
+
+Esto confirma el riesgo previsto en la fase 0 y fija el escenario de despliegue del worker: PC de la clínica o de StartIA con sesión de Windows abierta.
+
 ## Despliegue
 
 - **API** en Vercel: raíz del proyecto `api/`, variables `MONGODB_URI` y `MASTER_KEY`. Hono se detecta sin configuración adicional.
-- **Worker** en un PC Windows del cliente, en la oficina de StartIA o en un VPS. Ejecutar `npm run worker` como servicio (NSSM o Tarea programada) con el `.env` de la raíz. Un worker atiende a varios clientes; se agregan más cuando el volumen lo pida.
+- **Worker** en un PC Windows con escritorio, del cliente o de StartIA. Un VPS sin pantalla no sirve para portales con anti-bots como Sanitas. Ejecutar `npm run worker` como servicio (NSSM o Tarea programada) con el `.env` de la raíz. Un worker atiende a varios clientes; se agregan más cuando el volumen lo pida.
