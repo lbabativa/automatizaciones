@@ -192,3 +192,9 @@ En cada prueba lanzada desde el editor, el worker guarda además de la captura l
 - El botón 📷 junto a cualquier objetivo abre el **inspector**: la captura del paso con los elementos resaltados y una lista filtrable. Un clic en un elemento muestra sus objetivos sugeridos y "Usar" lo escribe en el paso.
 - Desde la miniatura de una captura en "Probar aquí" se abre el mismo inspector para copiar un objetivo o **añadir un paso nuevo** (clic, escribir, leer, esperar, seleccionar) con ese elemento.
 - La pestaña **Versiones** lista cada publicación; se puede ver, comparar con el borrador (diferencias línea a línea) y restaurar como borrador para volver a publicarla.
+
+### Grabador de acciones
+
+Desde el editor, **⏺ Grabar** pide a un worker con ventana visible (`HEADLESS=false`, el del PC de la clínica) que abra el portal con la sesión del cliente. Lo que la persona hace en esa ventana se convierte en pasos: clics (`clic`), texto (`escribir`, con `tecla: Enter` si se confirmó así), listas (`seleccionar`). Alt+clic sobre un dato crea un paso `leer` con su etiqueta detectada; Ctrl+Shift+S crea una `capturar`. Los valores de prueba indicados al iniciar quedan en los pasos como `{{parametro}}`. Se termina con "Detener" en la barra flotante de la ventana o desde la consola, y los pasos se añaden al borrador en la posición elegida. Cada paso trae `alternativas` con otros objetivos posibles, por si el sugerido no es estable.
+
+`npm run test:grabador` prueba el grabador contra el portal falso con acciones simuladas.

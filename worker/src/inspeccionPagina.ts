@@ -10,32 +10,14 @@
 import { Inspeccion, type ElementoInspeccion } from '@startia/core';
 import type { Page } from 'playwright';
 import type { Types } from 'mongoose';
+import { CODIGO_SUGERENCIAS } from './sugerencias.js';
 
 const MAX_ELEMENTOS = 600;
 
 const CODIGO_INSPECCION = `() => {
-  const limpiar = (s) => (s ?? '').replace(/\\s+/g, ' ').trim();
-  const rolDe = (el) => {
-    const r = el.getAttribute('role'); if (r) return r;
-    const t = el.tagName.toLowerCase();
-    if (t === 'a' && el.hasAttribute('href')) return 'link';
-    if (t === 'button') return 'button';
-    if (t === 'select') return 'combobox';
-    if (t === 'textarea') return 'textbox';
-    if (t === 'img') return 'img';
-    if (t === 'input') { const ty = (el.getAttribute('type') || 'text').toLowerCase(); if (ty === 'button' || ty === 'submit' || ty === 'reset' || ty === 'image') return 'button'; if (ty === 'checkbox') return 'checkbox'; if (ty === 'radio') return 'radio'; if (ty === 'hidden') return null; return 'textbox'; }
-    if (/^h[1-6]$/.test(t)) return 'heading';
-    return null;
-  };
-  const etiquetaDe = (el) => {
-    if (el.id) { const l = document.querySelector('label[for="' + CSS.escape(el.id) + '"]'); if (l) return limpiar(l.textContent); }
-    const p = el.closest('label'); if (p) return limpiar(p.textContent);
-    const al = el.getAttribute('aria-label'); if (al) return limpiar(al);
-    return '';
-  };
+  ${CODIGO_SUGERENCIAS}
   const sx = window.scrollX, sy = window.scrollY;
   const todos = Array.from(document.querySelectorAll('a, button, input, select, textarea, label, img, [role], [onclick], h1, h2, h3, h4, th, td, span, b, strong, p, li, dt, dd, div'));
-  const conteoRol = {};
   const salida = [];
   for (const el of todos) {
     const t = el.tagName.toLowerCase();
@@ -47,23 +29,12 @@ const CODIGO_INSPECCION = `() => {
     if (r.width < 2 || r.height < 2) continue;
     const st = window.getComputedStyle(el);
     if (st.visibility === 'hidden' || st.display === 'none') continue;
-    const texto = limpiar(t === 'input' || t === 'select' || t === 'textarea' ? (el.getAttribute('value') || el.getAttribute('title') || '') : el.textContent).slice(0, 80);
+    const d = describir(el);
+    const texto = d.texto;
     if (!interactivo && !texto) continue;
-    let indiceRol;
-    if (rol) { indiceRol = conteoRol[rol] = (conteoRol[rol] ?? -1) + 1; }
-    const nombre = el.getAttribute('aria-label') || el.getAttribute('title') || (t === 'input' ? '' : texto);
-    const etiqueta = (t === 'input' || t === 'select' || t === 'textarea') ? etiquetaDe(el) : '';
-    const placeholder = el.getAttribute('placeholder') || '';
-    const sug = [];
-    if (el.id && !/^(j_id|id\\d|:)/.test(el.id) && !/\\d{3,}/.test(el.id)) sug.push({ selector: '#' + CSS.escape(el.id) });
-    if (etiqueta && (t === 'input' || t === 'select' || t === 'textarea')) sug.push({ etiqueta });
-    if (placeholder) sug.push({ placeholder });
-    if (rol && nombre && rol !== 'textbox' && rol !== 'combobox') sug.push({ rol, nombre: nombre.slice(0, 60) });
-    if (rol && indiceRol !== undefined && (rol === 'combobox' || rol === 'textbox' || rol === 'checkbox' || rol === 'radio')) sug.push({ rol, indice: indiceRol });
-    if (texto && !(t === 'input' || t === 'select' || t === 'textarea')) sug.push({ texto: texto.slice(0, 60), exacto: texto.length <= 60 });
-    const name = el.getAttribute('name');
-    if (name) sug.push({ selector: t + '[name="' + name.replace(/"/g, '\\\\"') + '"]' });
-    if (el.getAttribute('title')) sug.push({ selector: t + '[title="' + el.getAttribute('title').replace(/"/g, '\\\\"') + '"]' });
+    const indiceRol = rol ? indiceRolDe(el, rol) : undefined;
+    const etiqueta = d.etiqueta, placeholder = d.placeholder, name = d.name;
+    const sug = sugerir(el);
     if (!sug.length) continue;
     salida.push({ tag: t, texto, caja: [Math.round(r.left + sx), Math.round(r.top + sy), Math.round(r.width), Math.round(r.height)], id: el.id || undefined, name: name || undefined, placeholder: placeholder || undefined, rol: rol || undefined, etiqueta: etiqueta || undefined, tipo: t === 'input' ? (el.getAttribute('type') || 'text') : undefined, indiceRol, sugerencias: sug });
     if (salida.length >= ${MAX_ELEMENTOS}) break;

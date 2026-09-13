@@ -13,3 +13,5 @@ export type { FlujoDoc } from './modelos/Flujo.js';
 export * from './flujos/index.js';
 export { Inspeccion } from './modelos/Inspeccion.js';
 export type { InspeccionDoc, ElementoInspeccion } from './modelos/Inspeccion.js';
+export { Grabacion, ESTADOS_GRABACION } from './modelos/Grabacion.js';
+export type { GrabacionDoc } from './modelos/Grabacion.js';

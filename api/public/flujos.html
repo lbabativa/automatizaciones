@@ -177,6 +177,7 @@ pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;pad
         <span id="ed-estado" class="chip"></span>
         <span id="ed-sucio" class="chip bor" hidden>sin guardar</span>
         <div class="acciones">
+          <button class="sec" id="btn-grabar" title="Grabar acciones en el portal y convertirlas en pasos">⏺ Grabar</button>
           <button class="sec" id="btn-probar">▶ Probar</button>
           <button id="btn-guardar">Guardar borrador</button>
           <button class="sec" id="btn-publicar">Publicar</button>
@@ -288,6 +289,28 @@ pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;pad
       <div class="lado">
         <div class="lista" id="in-lista"></div>
         <div class="sugerencias" id="in-sug"><h4>Objetivo sugerido</h4><p class="ayuda">Haga clic en un elemento de la captura o de la lista.</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="modal-grabar" class="modal-fondo" hidden>
+  <div class="modal" style="width:min(720px,94vw)">
+    <h3>Grabar acciones</h3>
+    <div id="gr-config">
+      <p class="ayuda">Un worker con ventana visible abrirá el portal con la sesión del cliente. Lo que haga allí (clics, texto, listas, Enter) se convierte en pasos. Alt+clic sobre un dato crea un paso <b>leer</b>; Ctrl+Shift+S, una <b>captura</b>. Termine con "Detener" en la barra de la ventana o aquí.</p>
+      <label>Cliente (sesión y credenciales)</label><select id="gr-cliente"></select>
+      <label>URL de inicio</label><input id="gr-url" class="mono">
+      <div id="gr-params"></div>
+      <p class="ayuda">Los valores de prueba que escriba en el portal quedarán en los pasos como <span class="mono">{{parametro}}</span>.</p>
+      <div id="gr-error" class="error" hidden></div>
+      <div class="agregar-paso" style="justify-content:flex-end;margin-top:14px"><button type="button" class="ghost" id="gr-cancelar">Cancelar</button><button type="button" id="gr-iniciar">Iniciar grabación</button></div>
+    </div>
+    <div id="gr-curso" hidden>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span id="gr-estado" class="chip"></span><span id="gr-info" class="ayuda"></span><button class="mini peligro" id="gr-detener" style="margin-left:auto">Detener</button></div>
+      <div id="gr-lista" class="lista" style="max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:8px;font-size:12.5px"></div>
+      <div id="gr-fin" hidden>
+        <div class="agregar-paso" style="margin-top:12px"><label style="margin:0">Añadir</label><select id="gr-posicion"></select><button id="gr-agregar">Añadir pasos al borrador</button><button class="ghost" id="gr-cerrar">Cerrar sin añadir</button></div>
       </div>
     </div>
   </div>
@@ -866,6 +889,68 @@ function elegirElemento(i) {
   if (nuevo) nuevo.onchange = () => { if (!nuevo.value) return; const p = nuevoPaso(nuevo.value); p.objetivo = e.sugerencias[0]; if (nuevo.value === 'leer') p.guardar_como = 'valor'; DEF.pasos.push(p); marcarSucio(); pintarPasosRaiz(); modal.hidden = true; document.querySelector('.tabs button[data-tab="pasos"]').click(); mensaje(`Paso ${DEF.pasos.length} añadido al final con el elemento elegido.`); };
 }
 const describirSug = (s) => s.selector ? `selector ${s.selector}` : s.etiqueta ? `etiqueta "${s.etiqueta}"` : s.placeholder ? `placeholder "${s.placeholder}"` : s.rol ? `rol ${s.rol}${s.nombre ? ` "${s.nombre}"` : ''}${s.indice !== undefined ? ` #${s.indice}` : ''}` : s.texto ? `texto "${s.texto}"${s.exacto ? ' (exacto)' : ''}` : JSON.stringify(s);
+
+// ---------------------------------------------------------------------------------
+// Grabador de acciones
+// ---------------------------------------------------------------------------------
+const modalGr = $('#modal-grabar');
+let GR = { id: null, timer: null, pasos: [] };
+$('#btn-grabar').onclick = async () => {
+  if (!META) { mensaje('Guarde el flujo antes de grabar: la grabación usa su portal y su URL de inicio.', 'aviso'); return; }
+  $('#gr-config').hidden = false; $('#gr-curso').hidden = true; $('#gr-error').hidden = true;
+  const clientes = META.clientes || [];
+  $('#gr-cliente').innerHTML = clientes.map((c) => `<option value="${esc(c.slug)}">${esc(c.nombre)}</option>`).join('');
+  $('#gr-url').value = DEF.url_inicio || '';
+  $('#gr-params').innerHTML = (DEF.parametros || []).length ? '<label>Valores de prueba</label>' + DEF.parametros.map((p) => `<div class="row" style="margin-bottom:6px;align-items:center"><span class="mono">${esc(p.nombre)}</span><input data-p="${esc(p.nombre)}" placeholder="${esc(p.ejemplo || p.etiqueta)}" value="${esc(p.por_defecto ?? '')}"></div>`).join('') : '';
+  modalGr.hidden = false;
+  // Si hay una grabación pendiente o en curso de este flujo, se retoma.
+  try { const { grabaciones } = await api('/grabaciones?flujo=' + encodeURIComponent(DEF.nombre)); const activa = grabaciones.find((g) => g.estado === 'solicitada' || g.estado === 'grabando'); if (activa) seguirGrabacion(activa.id); } catch { /* sin grabaciones */ }
+};
+$('#gr-cancelar').onclick = () => (modalGr.hidden = true);
+$('#gr-iniciar').onclick = async () => {
+  const parametros = {};
+  $('#gr-params').querySelectorAll('[data-p]').forEach((i) => { if (i.value !== '') parametros[i.dataset.p] = i.value; });
+  $('#gr-error').hidden = true;
+  try {
+    const g = await api('/grabaciones', { method: 'POST', body: JSON.stringify({ flujo: DEF.nombre, cliente: $('#gr-cliente').value, url: $('#gr-url').value.trim(), parametros }) });
+    seguirGrabacion(g.id);
+  } catch (e) { $('#gr-error').hidden = false; $('#gr-error').textContent = e.message; }
+};
+function seguirGrabacion(id) {
+  GR = { id, timer: null, pasos: [] };
+  $('#gr-config').hidden = true; $('#gr-curso').hidden = false; $('#gr-fin').hidden = true; $('#gr-lista').innerHTML = '';
+  const tick = async () => {
+    const g = await api('/grabaciones/' + id).catch(() => null);
+    if (!g) return;
+    GR.pasos = g.pasos || [];
+    const etq = { solicitada: 'Esperando a un worker con ventana visible…', grabando: 'Grabando en ' + g.portal, terminada: 'Grabación terminada', cancelada: 'Cancelada', fallida: 'Falló' }[g.estado] || g.estado;
+    $('#gr-estado').className = 'chip ' + (g.estado === 'grabando' ? 'bor' : g.estado === 'terminada' ? 'pub' : '');
+    $('#gr-estado').innerHTML = (g.estado === 'solicitada' || g.estado === 'grabando' ? '<span class="spinner"></span>' : '') + esc(etq);
+    $('#gr-info').textContent = `${GR.pasos.length} pasos · ${g.cliente}${g.worker ? ' · ' + g.worker : ''}${g.error ? ' · ' + g.error : ''}`;
+    $('#gr-lista').innerHTML = GR.pasos.map((p, i) => `<div class="it"><span class="tag">${i + 1}</span><span class="tag">${esc(DESCR[p.tipo] || p.tipo)}</span><span class="tx">${esc(p.titulo || resumenPaso(p))}</span></div>`).join('') || '<p class="vacio" style="padding:14px">Todavía no hay acciones. Use la ventana del portal que abrió el worker.</p>';
+    $('#gr-lista').scrollTop = $('#gr-lista').scrollHeight;
+    const activa = g.estado === 'solicitada' || g.estado === 'grabando';
+    $('#gr-detener').hidden = !activa;
+    if (!activa) {
+      clearInterval(GR.timer);
+      $('#gr-fin').hidden = !GR.pasos.length;
+      const n = (DEF.pasos || []).length;
+      $('#gr-posicion').innerHTML = `<option value="${n}">al final</option>` + (DEF.pasos || []).map((p, i) => `<option value="${i}">antes del paso ${i + 1} (${esc(DESCR[p.tipo] || p.tipo)}${p.titulo ? ': ' + esc(p.titulo) : ''})</option>`).join('');
+    }
+  };
+  tick(); GR.timer = setInterval(tick, 2000);
+}
+$('#gr-detener').onclick = async () => { await api('/grabaciones/' + GR.id + '/detener', { method: 'POST' }).catch((e) => mensaje(esc(e.message), 'error')); };
+$('#gr-cerrar').onclick = () => { clearInterval(GR.timer); modalGr.hidden = true; };
+$('#gr-agregar').onclick = () => {
+  const pos = Number($('#gr-posicion').value);
+  const nuevos = GR.pasos.map((p) => { const { alternativas, ...limpio } = p; return limpio; });
+  DEF.pasos.splice(pos, 0, ...nuevos);
+  clearInterval(GR.timer); modalGr.hidden = true; marcarSucio(); pintarPasosRaiz();
+  document.querySelector('.tabs button[data-tab="pasos"]').click();
+  mensaje(`${nuevos.length} pasos grabados añadidos ${pos >= DEF.pasos.length - nuevos.length ? 'al final' : 'en la posición ' + (pos + 1)}. Revíselos y guarde el borrador.`);
+};
+modalGr.addEventListener('click', (e) => { if (e.target === modalGr && $('#gr-config').hidden === false) modalGr.hidden = true; });
 
 // ---------------------------------------------------------------------------------
 // Versiones

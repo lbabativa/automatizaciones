@@ -20,6 +20,7 @@ import {
   esquemaParametros,
   Flujo,
   FlujoDefSchema,
+  Grabacion,
   Inspeccion,
   rutaProyecto,
   Sesion,
@@ -28,6 +29,7 @@ import {
   type ClienteDoc,
   type FlujoDef,
   type FlujoDoc,
+  type GrabacionDoc,
   type InspeccionDoc,
   type TrabajoDoc,
 } from '@startia/core';
@@ -443,6 +445,78 @@ admin.post('/api/flujos/:nombre/probar', async (c) => {
     prueba: { origen, capturarCadaPaso: true },
   });
   return c.json(detalle(trabajo), 202);
+});
+
+// ---------------------------------------------------------------------------------
+// Grabador de acciones
+// ---------------------------------------------------------------------------------
+
+const presentarGrabacion = (g: GrabacionDoc) => ({
+  id: String(g._id),
+  flujo: g.flujoNombre ?? null,
+  cliente: g.clienteSlug,
+  portal: g.portal,
+  url: g.urlInicio,
+  estado: g.estado,
+  detener: g.detener,
+  worker: g.workerId ?? null,
+  pasos: g.pasos ?? [],
+  error: g.error ?? null,
+  creada: g.createdAt,
+  iniciada: g.iniciadaEn ?? null,
+  terminada: g.terminadaEn ?? null,
+});
+
+/** Solicita una grabación; la toma el primer worker con ventana visible. */
+admin.post('/api/grabaciones', async (c) => {
+  let cuerpo: { flujo?: string; cliente?: string; portal?: string; url?: string; parametros?: Record<string, unknown> };
+  try {
+    cuerpo = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON_INVALIDO' }, 400);
+  }
+  if (!cuerpo.cliente) return c.json({ error: 'FALTA_CLIENTE', mensaje: 'Elija el cliente con cuya sesión se grabará' }, 400);
+  const cliente = await Cliente.findOne({ slug: cuerpo.cliente }).lean<ClienteDoc>();
+  if (!cliente) return c.json({ error: 'CLIENTE_NO_ENCONTRADO' }, 404);
+  const flujo = cuerpo.flujo ? await Flujo.findOne({ nombre: cuerpo.flujo }).lean<FlujoDoc>() : null;
+  const def = (flujo?.borrador ?? flujo?.definicion ?? null) as FlujoDef | null;
+  const portal = cuerpo.portal ?? def?.portal;
+  const url = cuerpo.url ?? def?.url_inicio;
+  if (!portal || !url) return c.json({ error: 'FALTAN_DATOS', mensaje: 'Se requieren portal y URL de inicio (o un flujo guardado que los tenga)' }, 400);
+  const pendiente = await Grabacion.findOne({ estado: { $in: ['solicitada', 'grabando'] } }).lean<GrabacionDoc>();
+  if (pendiente) return c.json({ error: 'GRABACION_EN_CURSO', mensaje: 'Ya hay una grabación en curso; deténgala antes de iniciar otra', id: String(pendiente._id) }, 409);
+  const g = await Grabacion.create({ flujoNombre: cuerpo.flujo, clienteSlug: cliente.slug, portal, urlInicio: url, parametrosPrueba: cuerpo.parametros ?? {} });
+  return c.json(presentarGrabacion(g.toObject() as GrabacionDoc), 202);
+});
+
+admin.get('/api/grabaciones', async (c) => {
+  const filtro: Record<string, unknown> = {};
+  const flujo = c.req.query('flujo');
+  if (flujo) filtro.flujoNombre = flujo;
+  const lista = await Grabacion.find(filtro).sort({ createdAt: -1 }).limit(10).lean<GrabacionDoc[]>();
+  return c.json({ grabaciones: lista.map((g) => ({ ...presentarGrabacion(g), pasos: (g.pasos ?? []).length })) });
+});
+
+admin.get('/api/grabaciones/:id', async (c) => {
+  const id = c.req.param('id');
+  if (!mongoose.isValidObjectId(id)) return c.json({ error: 'ID_INVALIDO' }, 400);
+  const g = await Grabacion.findById(id).lean<GrabacionDoc>();
+  if (!g) return c.json({ error: 'NO_ENCONTRADA' }, 404);
+  return c.json(presentarGrabacion(g));
+});
+
+/** Pide al worker cerrar la grabación; si nadie la había tomado, queda cancelada. */
+admin.post('/api/grabaciones/:id/detener', async (c) => {
+  const id = c.req.param('id');
+  if (!mongoose.isValidObjectId(id)) return c.json({ error: 'ID_INVALIDO' }, 400);
+  const g = await Grabacion.findById(id).lean<GrabacionDoc>();
+  if (!g) return c.json({ error: 'NO_ENCONTRADA' }, 404);
+  if (g.estado === 'solicitada') {
+    await Grabacion.updateOne({ _id: id }, { $set: { estado: 'cancelada', detener: true, terminadaEn: new Date() } });
+    return c.json({ ok: true, estado: 'cancelada' });
+  }
+  await Grabacion.updateOne({ _id: id }, { $set: { detener: true } });
+  return c.json({ ok: true, estado: g.estado });
 });
 
 /** Habilita o deshabilita un módulo (en código o flujo) para un cliente, conservando su config. */

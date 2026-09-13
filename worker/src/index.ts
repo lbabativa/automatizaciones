@@ -26,6 +26,7 @@ import { nombresModulosSoportados, registro, resolverModulo } from '@startia/mod
 import { asegurarSesion } from './sesionHelper.js';
 import { capturarEvidencia } from './evidencias.js';
 import { inspeccionarPagina } from './inspeccionPagina.js';
+import { grabar, reclamarGrabacion } from './grabador.js';
 import { cerrarTodo, guardarSesion, invalidarSesion, obtenerContexto } from './navegador.js';
 
 const WORKER_ID = env('WORKER_ID', 'worker-1');
@@ -156,6 +157,15 @@ async function principal(): Promise<void> {
       // Los flujos declarativos se publican desde la consola sin reiniciar el worker.
       modulosSoportados = await nombresModulosSoportados().catch(() => modulosSoportados);
       ultimaLista = Date.now();
+    }
+    // Las grabaciones necesitan ventana visible: solo las toma un worker con HEADLESS=false.
+    if (!HEADLESS) {
+      const grabacion = await reclamarGrabacion(WORKER_ID).catch(() => null);
+      if (grabacion) {
+        log(`Grabación ${String(grabacion._id)} (${grabacion.portal}, ${grabacion.clienteSlug})`);
+        await grabar(grabacion, log);
+        continue;
+      }
     }
     const trabajo = await reclamar(WORKER_ID, modulosSoportados);
     if (!trabajo) {
