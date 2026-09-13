@@ -21,7 +21,14 @@ export const CODIGO_GRABADOR = `(() => {
   const enviar = (p) => { try { window.__startiaGrabar(p); } catch (e) {} };
   const textual = (el) => el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && /^(text|number|date|password|email|tel|search|url|)$/.test((el.getAttribute('type') || '').toLowerCase())));
   const accionable = (el) => el.closest('a, button, input, select, textarea, label, summary, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [role="checkbox"], [role="radio"], [onclick], td, th, li, span, div') || el;
-  const tituloDe = (el, verbo) => verbo + ' ' + (limpiar(el.textContent || el.getAttribute('value') || el.getAttribute('title') || el.getAttribute('aria-label') || etiquetaDe(el) || el.getAttribute('placeholder') || '').slice(0, 40) || el.tagName.toLowerCase());
+  // Para campos y listas, el nombre sale de su etiqueta o placeholder (no del texto de las opciones).
+  const tituloDe = (el, verbo) => {
+    const t = el.tagName.toLowerCase();
+    const nombre = t === 'select' || t === 'input' || t === 'textarea'
+      ? (etiquetaDe(el) || el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('name') || el.id || t)
+      : (limpiar(el.textContent) || el.getAttribute('value') || el.getAttribute('title') || el.getAttribute('aria-label') || t);
+    return verbo + ' ' + limpiar(nombre).slice(0, 40);
+  };
   const conEnter = new WeakSet();
 
   // Etiqueta para un paso "leer": texto antes de ":" o celda/elemento anterior corto.
