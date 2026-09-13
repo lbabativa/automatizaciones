@@ -299,10 +299,23 @@ function pintarSesion(cl) {
     : `<div class="sesion warn">⚠️ <span>La sesión en ${esc(s.portal)} expiró (${fmtHora(s.actualizada)}). La próxima consulta pedirá iniciar sesión a mano en el equipo de la clínica.</span></div>`).join('');
 }
 
+// Campos de un flujo declarativo, a partir de la definición de parámetros que trae el catálogo.
+function camposDesdeDefinicion(defs) {
+  return defs.map((d) => {
+    const base = { n: d.nombre, etq: d.etiqueta, req: !!d.requerido, ayuda: d.ayuda, ph: d.ejemplo ? 'Ej. ' + d.ejemplo : '' };
+    if (d.tipo === 'opcion') return { ...base, tipo: 'select', ops: (d.opciones || []).map((o) => (Array.isArray(o) ? o : [o, o])), def: d.por_defecto };
+    if (d.tipo === 'booleano') return { ...base, tipo: 'select', ops: [['', '—'], ['true', 'Sí'], ['false', 'No']], def: d.por_defecto === undefined ? '' : String(d.por_defecto) };
+    if (d.tipo === 'fecha') return { ...base, tipo: 'date' };
+    if (d.tipo === 'numero') return { ...base, tipo: 'number' };
+    return { ...base, tipo: 'text', fila: d.nombre === 'tipo_doc' || d.nombre === 'num_doc' };
+  });
+}
+
 function onModuloCambia() {
   const m = $('#f-modulo').value;
   const esquema = ESQUEMAS[m];
-  const campos = esquema ? esquema.campos : [{ n: '_json', etq: 'Parámetros (JSON)', tipo: 'json' }];
+  const defs = (MODULOS.find((x) => x.nombre === m) || {}).parametros;
+  const campos = esquema ? esquema.campos : (defs && defs.length ? camposDesdeDefinicion(defs) : [{ n: '_json', etq: 'Parámetros (JSON)', tipo: 'json' }]);
   let html = '', fila = [];
   const cerrarFila = () => { if (fila.length) { html += `<div class="row">${fila.join('')}</div>`; fila = []; } };
   for (const c of campos) {

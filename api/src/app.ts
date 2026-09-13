@@ -1,5 +1,5 @@
 import { buscarEnCache, buscarEnCurso, conectarDb, encolar, envNum, esperarResultado, Trabajo, type TrabajoDoc } from '@startia/core';
-import { listarModulos, obtenerModulo } from '@startia/modulos';
+import { listarModulosDisponibles, resolverModulo } from '@startia/modulos';
 import { Hono } from 'hono';
 import { logger } from 'hono/logger';
 import mongoose from 'mongoose';
@@ -34,10 +34,11 @@ app.get('/v1/salud', async (c) => {
 app.use('/v1/*', autenticar);
 
 /** Módulos habilitados para el cliente autenticado. */
-app.get('/v1/modulos', (c) => {
+app.get('/v1/modulos', async (c) => {
   const cliente = c.get('cliente');
   const habilitados = new Set(cliente.modulos.filter((m) => m.activo).map((m) => m.nombre));
-  return c.json({ modulos: listarModulos().filter((m) => habilitados.has(m.nombre)) });
+  const modulos = (await listarModulosDisponibles()).filter((m) => habilitados.has(m.nombre));
+  return c.json({ modulos: modulos.map(({ parametros: _p, origen: _o, ...m }) => m) });
 });
 
 app.get('/v1/trabajos/:id', async (c) => {
@@ -65,7 +66,7 @@ app.post('/v1/:portal/:modulo', async (c) => {
   const nombre = c.req.param('modulo');
   const portal = c.req.param('portal');
 
-  const modulo = obtenerModulo(nombre);
+  const modulo = await resolverModulo(nombre);
   if (!modulo || modulo.portal !== portal) return c.json({ error: 'MODULO_INEXISTENTE', mensaje: `No existe el módulo ${portal}/${nombre}` }, 404);
   const habilitado = cliente.modulos.find((m) => m.nombre === nombre && m.activo);
   if (!habilitado) return c.json({ error: 'MODULO_NO_CONTRATADO', mensaje: `El módulo ${nombre} no está habilitado para ${cliente.slug}` }, 403);

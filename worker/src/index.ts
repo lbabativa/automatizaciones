@@ -20,7 +20,7 @@ import {
   type ClienteDoc,
   type TrabajoDoc,
 } from '@startia/core';
-import { obtenerModulo, registro } from '@startia/modulos';
+import { nombresModulosSoportados, registro, resolverModulo } from '@startia/modulos';
 import { asegurarSesion } from './sesionHelper.js';
 import { capturarEvidencia } from './evidencias.js';
 import { cerrarTodo, guardarSesion, invalidarSesion, obtenerContexto } from './navegador.js';
@@ -30,7 +30,6 @@ const POLL_MS = envNum('POLL_MS', 3000);
 const PAUSA_MIN = envNum('PAUSA_MIN_MS', 20_000);
 const PAUSA_MAX = envNum('PAUSA_MAX_MS', 40_000);
 const HEADLESS = env('HEADLESS', 'true') !== 'false';
-const modulosSoportados = Object.keys(registro);
 
 let detener = false;
 process.on('SIGINT', () => (detener = true));
@@ -42,7 +41,7 @@ const log = (msg: string) => console.log(`[${new Date().toISOString()}] [${WORKE
 async function procesar(trabajo: TrabajoDoc): Promise<void> {
   const capturas: string[] = [];
   const id = String(trabajo._id);
-  const modulo = obtenerModulo(trabajo.modulo);
+  const modulo = await resolverModulo(trabajo.modulo);
   if (!modulo) {
     await fallar(trabajo._id, { codigo: 'MODULO_INEXISTENTE', mensaje: `El worker no tiene el módulo ${trabajo.modulo}` }, [], false);
     return;
@@ -121,14 +120,21 @@ async function notificar(trabajo: TrabajoDoc, estado: 'completado' | 'fallido', 
 
 async function principal(): Promise<void> {
   await conectarDb();
-  log(`Worker listo. Módulos: ${modulosSoportados.join(', ')}. Headless: ${HEADLESS}`);
+  let modulosSoportados = await nombresModulosSoportados();
+  log(`Worker listo. Módulos en código: ${Object.keys(registro).join(', ')}. Flujos publicados: ${modulosSoportados.filter((m) => !registro[m]).join(', ') || 'ninguno'}. Headless: ${HEADLESS}`);
   let ultimoRescate = 0;
+  let ultimaLista = Date.now();
 
   while (!detener) {
     if (Date.now() - ultimoRescate > 5 * 60_000) {
       const n = await rescatarHuerfanos(15);
       if (n) log(`${n} trabajo(s) huérfano(s) devueltos a la cola`);
       ultimoRescate = Date.now();
+    }
+    if (Date.now() - ultimaLista > 30_000) {
+      // Los flujos declarativos se publican desde la consola sin reiniciar el worker.
+      modulosSoportados = await nombresModulosSoportados().catch(() => modulosSoportados);
+      ultimaLista = Date.now();
     }
     const trabajo = await reclamar(WORKER_ID, modulosSoportados);
     if (!trabajo) {

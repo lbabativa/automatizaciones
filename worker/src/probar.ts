@@ -10,7 +10,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { cerrarDb, Cliente, conectarDb, descifrar, env, ErrorNegocio, ErrorSesion, rutaProyecto, type ClienteDoc } from '@startia/core';
 import { asegurarSesion } from './sesionHelper.js';
-import { obtenerModulo } from '@startia/modulos';
+import { resolverModulo } from '@startia/modulos';
 import { cerrarTodo, guardarSesion, obtenerContexto } from './navegador.js';
 
 const [clienteSlug, nombreModulo, parametrosJson = '{}'] = process.argv.slice(2);
@@ -18,23 +18,25 @@ if (!clienteSlug || !nombreModulo) {
   console.error("Uso: npm run probar -- <cliente> <modulo> '<parametros JSON>'");
   process.exit(1);
 }
-const modulo = obtenerModulo(nombreModulo);
+const HEADLESS = env('HEADLESS', 'true') !== 'false';
+const log = (m: string) => console.log(`[${new Date().toLocaleTimeString('es-CO')}] ${m}`);
+
+await conectarDb();
+const modulo = await resolverModulo(nombreModulo);
 if (!modulo) {
-  console.error(`No existe el módulo ${nombreModulo}`);
+  console.error(`No existe el módulo ${nombreModulo} (ni en código ni como flujo publicado)`);
+  await cerrarDb();
   process.exit(1);
 }
 const parametros = modulo.parametros.safeParse(JSON.parse(parametrosJson));
 if (!parametros.success) {
   console.error('Parámetros inválidos:', JSON.stringify(parametros.error.issues, null, 2));
+  await cerrarDb();
   process.exit(1);
 }
-const HEADLESS = env('HEADLESS', 'true') !== 'false';
 const sello = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const dir = rutaProyecto('inspeccion', modulo.portal, `probar-${sello}`);
 await mkdir(dir, { recursive: true });
-const log = (m: string) => console.log(`[${new Date().toLocaleTimeString('es-CO')}] ${m}`);
-
-await conectarDb();
 try {
   const cliente = await Cliente.findOne({ slug: clienteSlug }).lean<ClienteDoc>();
   if (!cliente) throw new Error(`No existe el cliente ${clienteSlug}`);

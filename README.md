@@ -155,3 +155,20 @@ Esto confirma el riesgo previsto en la fase 0 y fija el escenario de despliegue 
 
 - **API** en Vercel: raíz del proyecto `api/`, variables `MONGODB_URI` y `MASTER_KEY`. Hono se detecta sin configuración adicional.
 - **Worker** en un PC Windows con escritorio, del cliente o de StartIA. Un VPS sin pantalla no sirve para portales con anti-bots como Sanitas. Ejecutar `npm run worker` como servicio (NSSM o Tarea programada) con el `.env` de la raíz. Un worker atiende a varios clientes; se agregan más cuando el volumen lo pida.
+
+## Flujos declarativos (sin código)
+
+Además de los módulos en código, una automatización puede describirse como **datos**: parámetros de entrada, condición de sesión, login y una lista de pasos. El intérprete del núcleo (`core/src/flujos/`) los ejecuta con Playwright y los expone como un módulo más, así que API, worker y consola los tratan igual. Se guardan en la colección `flujos` y el worker los toma sin reiniciar (refresca la lista cada 30 s).
+
+Ejemplo completo: [`flujos/sanitas-autorizaciones.json`](flujos/sanitas-autorizaciones.json), la versión declarativa del módulo de Sanitas con los mismos pasos y reglas.
+
+```bash
+npm run flujo:importar -- flujos/sanitas-autorizaciones.json              # guarda como borrador
+npm run flujo:importar -- flujos/sanitas-autorizaciones.json --publicar   # lo deja disponible para API y worker
+npm run probar -- cardioib sanitas-autorizaciones-flujo '{"num_doc":"79589789"}'   # lo ejecuta contra el portal real
+npm run test:flujos    # prueba el intérprete contra un portal falso (core/test/portal-falso.html), sin Mongo ni credenciales
+```
+
+Tipos de paso: `ir`, `clic`, `escribir`, `seleccionar`, `presionar`, `esperar`, `leer`, `leer_lista`, `leer_tabla`, `leer_lineas`, `capturar`, `asignar`, `agregar`, `buscar`, `transformar`, `elegir`, `decidir`, `si`, `para_cada`, `error`, `fin`. Los elementos se ubican con un **objetivo** (`selector`, `texto`, `rol`+`nombre`, `etiqueta`, `placeholder`, con `con_texto`, `indice` y `dentro_de`). Cualquier texto admite plantillas `{{variable}}`: los parámetros de la consulta, `{{config.<clave>}}`, `{{credenciales.<campo>}}`, `{{hoy}}` y todo lo leído en pasos anteriores. Las condiciones de `si`, `decidir` y `elegir` comparan variables (`igual`, `contiene`, `coincide`, `vacio`, `mayor`...) o la página (`existe`, `texto_visible`, `url_coincide`). El esquema completo está en `core/src/flujos/esquema.ts`.
+
+Dentro de los textos que se ejecutan en el navegador (`page.evaluate`) no se pueden declarar funciones con nombre: bajo tsx, esbuild les inyecta un helper `__name` que en la página no existe. Por eso esas lecturas van como texto.

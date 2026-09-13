@@ -13,7 +13,7 @@ import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Cliente, encolar, env, esperarResultado, rutaProyecto, Sesion, Trabajo, verificarPassword, type ClienteDoc, type TrabajoDoc } from '@startia/core';
-import { listarModulos, obtenerModulo } from '@startia/modulos';
+import { listarModulosDisponibles, resolverModulo } from '@startia/modulos';
 import { Hono, type Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import mongoose from 'mongoose';
@@ -144,7 +144,7 @@ admin.get('/api/yo', (c) => c.json({ usuario: usuarioActual(c) }));
 admin.get('/api/estado', async (c) => {
   const db = mongoose.connection.readyState === 1;
   const [pendientes, enProceso] = db ? await Promise.all([Trabajo.countDocuments({ estado: 'pendiente' }), Trabajo.countDocuments({ estado: 'en_proceso' })]) : [0, 0];
-  return c.json({ ok: db, pendientes, enProceso, modulos: listarModulos() });
+  return c.json({ ok: db, pendientes, enProceso, modulos: db ? await listarModulosDisponibles() : [] });
 });
 
 admin.get('/api/clientes', async (c) => {
@@ -214,7 +214,7 @@ admin.post('/api/ejecutar', async (c) => {
 
   const cliente = await Cliente.findOne({ slug }).lean<ClienteDoc>();
   if (!cliente) return c.json({ error: 'CLIENTE_NO_ENCONTRADO' }, 404);
-  const modulo = obtenerModulo(nombre);
+  const modulo = await resolverModulo(nombre);
   if (!modulo) return c.json({ error: 'MODULO_INEXISTENTE' }, 404);
   if (!cliente.modulos.some((m) => m.nombre === nombre && m.activo)) return c.json({ error: 'MODULO_NO_HABILITADO' }, 403);
 

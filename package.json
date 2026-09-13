@@ -21,6 +21,8 @@
     "cliente:rotar-clave": "tsx core/scripts/rotar-clave.ts",
     "cliente:credenciales": "tsx core/scripts/actualizar-credenciales.ts",
     "admin:password": "tsx core/scripts/admin-password.ts",
+    "flujo:importar": "tsx core/scripts/flujo-importar.ts",
+    "test:flujos": "tsx core/test/interprete.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

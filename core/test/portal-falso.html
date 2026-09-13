@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><title>Portal de prueba</title></head>
+<body>
+  <h1>Validación - búsqueda de Usuario</h1>
+  <p>Usuario: 123</p>
+  <form onsubmit="return false">
+    <label for="prestador">Prestador</label>
+    <select id="prestador"><option value="">--</option><option value="9">176805 - CLINICA PRUEBA</option></select>
+    <label for="tipo">Tipo documento</label>
+    <select id="tipo"><option value="CC">CC</option><option value="TI">TI</option></select>
+    <label><input type="radio" name="modo" checked> Tipo y Num Identificación</label>
+    <input id="doc" placeholder="Número documento">
+    <button type="button" title="Buscar" onclick="buscar()">🔍</button>
+    <label for="compania">Compañía</label>
+    <select id="compania" disabled><option value="">--</option><option value="T">Todas</option></select>
+  </form>
+
+  <div id="contratos" hidden>
+    <b>Contratos</b>
+    <div><label><input type="radio" name="c"> PAC - 555</label></div>
+    <div><label><input type="radio" name="c"> EPS - 1389266</label></div>
+    <button type="button" onclick="continuar()">Continuar</button>
+  </div>
+
+  <div id="ficha" hidden>
+    <h2>Información usuario</h2>
+    <div>BELTRAN_RODRIGUEZ , EDSON_AUGUSTO</div>
+    <table>
+      <tr><td>Compañía</td><td>EPS SANITAS</td></tr>
+      <tr><td>Plan</td><td>10 REGIMEN CONTRIBUTIVO</td></tr>
+      <tr><td>Estado:</td><td>VIGENTE</td></tr>
+      <tr><td>Teléfono principal</td><td></td></tr>
+      <tr><td>Segundo Teléfono</td><td>3001234567</td></tr>
+      <tr><td>Fecha Nacimiento</td><td>05/03/1980</td></tr>
+    </table>
+    <a href="#" onclick="autorizaciones(); return false">Servicios con Autorización</a>
+  </div>
+
+  <div id="aut" hidden>
+    <table id="tabla">
+      <tr><th></th><th>Número Autorización</th><th>Tipo</th><th>Fecha</th><th>Vigencia</th><th>Estado</th><th>Prestador</th><th>Cant</th></tr>
+      <tr><td><a href="#" onclick="seleccionar('333983714'); return false">sel</a></td><td>333983714</td><td>AMB</td><td>02/02/2026</td><td>02/12/2026</td><td>APROBADA</td><td>CLINICA PRUEBA SAS</td><td>1</td></tr>
+      <tr><td></td><td>890328</td><td colspan="6">CONSULTA DE CONTROL POR CARDIOLOGIA - 1.5 UVR</td></tr>
+      <tr><td><a href="#" onclick="seleccionar('111111111'); return false">sel</a></td><td>111111111</td><td>AMB</td><td>01/01/2020</td><td>01/06/2020</td><td>VENCIDA</td><td>CLINICA PRUEBA SAS</td><td>2</td></tr>
+      <tr><td></td><td>890201</td><td colspan="6">CONSULTA GENERAL</td></tr>
+    </table>
+  </div>
+
+  <div id="copago" hidden>
+    <b>Número de Autorización Seleccionada</b> <span id="sel"></span>
+    <table>
+      <tr><td>Condiciones de pago</td><td>Cuota Moderadora</td></tr>
+      <tr><td>Recaudo de pago</td><td>$ 5.000</td></tr>
+    </table>
+  </div>
+
+  <script>
+    function buscar() {
+      const doc = document.getElementById('doc').value;
+      setTimeout(() => {
+        document.getElementById('compania').disabled = false;
+        document.getElementById('compania').onchange = () => {
+          if (doc === '0000') { document.body.insertAdjacentHTML('beforeend', '<p id="msg">No se encontró el usuario</p>'); return; }
+          document.getElementById('contratos').hidden = false;
+        };
+      }, 300);
+    }
+    function continuar() { document.getElementById('ficha').hidden = false; }
+    function autorizaciones() { setTimeout(() => { document.getElementById('aut').hidden = false; }, 200); }
+    function seleccionar(n) { document.getElementById('sel').textContent = n; document.getElementById('copago').hidden = false; }
+  </script>
+</body>
+</html>

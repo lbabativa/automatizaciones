@@ -1,0 +1,201 @@
+{
+  "nombre": "sanitas-autorizaciones-flujo",
+  "titulo": "Autorizaciones Sanitas (flujo declarativo)",
+  "sector": "salud",
+  "portal": "sanitas",
+  "descripcion": "Consulta afiliación, autorizaciones vigentes y copago de un paciente en el Validador de Usuarios Sanitas. Versión declarativa del módulo en código, con los mismos pasos y reglas.",
+  "url_inicio": "https://portal.colsanitas.com/sso/login?service=https%3A%2F%2Fappcore.colsanitas.com%2FValidadorDerechos%2Fpages%2Fgestion%2FValidacionDerechos.seam",
+  "credenciales_requeridas": ["usuario", "password"],
+  "parametros": [
+    { "nombre": "tipo_doc", "etiqueta": "Tipo de documento", "tipo": "opcion", "opciones": ["CC", "TI", "CE", "PA", "RC", "PE", "PT", "AS", "MS", "NU", "CD", "SC"], "por_defecto": "CC" },
+    { "nombre": "num_doc", "etiqueta": "Número de documento", "tipo": "texto", "requerido": true, "patron": "^\\d{4,15}$", "ejemplo": "79589789" },
+    { "nombre": "cups", "etiqueta": "Código CUPS del servicio", "tipo": "texto", "patron": "^\\d{6}$", "ayuda": "Opcional. Si se indica, se busca la autorización para ese servicio." },
+    { "nombre": "fecha_cita", "etiqueta": "Fecha de la cita", "tipo": "fecha", "ayuda": "Opcional. Para validar que la autorización esté vigente ese día." },
+    { "nombre": "contrato", "etiqueta": "Contrato", "tipo": "opcion", "opciones": [["AUTO", "Detectar automáticamente"], ["EPS", "EPS"], ["PAC", "Plan complementario"]], "por_defecto": "AUTO" }
+  ],
+  "sesion": {
+    "valida_si": {
+      "todas": [
+        { "no": { "url_coincide": "/\\/sso\\/login|perfdrive\\.com/i" } },
+        { "alguna": [
+          { "url_coincide": "/appcore\\.colsanitas\\.com\\/ValidadorDerechos/i" },
+          { "texto_visible": "/Validaci[oó]n\\s*-\\s*b[uú]squeda/i" }
+        ] }
+      ]
+    },
+    "login": [
+      { "tipo": "si", "condicion": { "url_coincide": "/perfdrive\\.com/i" }, "entonces": [
+        { "tipo": "error", "clase": "sesion", "codigo": "ANTI_BOTS", "mensaje": "El portal de Colsanitas muestra el reto anti-bots. Ábralo una vez con: npm run sesion -- <cliente> sanitas" }
+      ] },
+      { "tipo": "esperar", "objetivo": { "selector": "#password" }, "timeout_ms": 10000 },
+      { "tipo": "escribir", "objetivo": { "selector": "#username" }, "valor": "{{credenciales.usuario}}" },
+      { "tipo": "escribir", "objetivo": { "selector": "#password" }, "valor": "{{credenciales.password}}" },
+      { "tipo": "clic", "objetivo": { "selector": "input[name=\"submit\"][value=\"Ingresar\"]" } },
+      { "tipo": "esperar", "url": "/appcore\\.colsanitas\\.com\\/ValidadorDerechos/i", "timeout_ms": 30000, "opcional": true, "guardar_como": "entro" },
+      { "tipo": "si", "condicion": { "url_coincide": "/\\/sso\\/login/i" }, "entonces": [
+        { "tipo": "error", "clase": "sesion", "codigo": "CREDENCIALES", "mensaje": "Colsanitas no aceptó las credenciales" }
+      ] }
+    ]
+  },
+  "pasos": [
+    { "tipo": "si", "titulo": "Config obligatoria", "condicion": { "variable": "config.prestadorCodigo", "op": "vacio" }, "entonces": [
+      { "tipo": "error", "clase": "portal", "codigo": "SIN_CONFIG", "mensaje": "El cliente no tiene configurado prestadorCodigo" }
+    ] },
+
+    { "tipo": "esperar", "titulo": "1. Formulario de búsqueda", "texto": "Validación - búsqueda de Usuario" },
+    { "tipo": "clic", "objetivo": { "texto": "Limpiar", "exacto": true }, "opcional": true },
+    { "tipo": "seleccionar", "titulo": "Prestador", "objetivo": { "rol": "combobox", "indice": 0 }, "texto": "{{config.prestadorCodigo}}" },
+    { "tipo": "clic", "objetivo": { "texto": "Tipo y Num Identificación" } },
+    { "tipo": "seleccionar", "titulo": "Tipo de documento", "objetivo": { "rol": "combobox", "indice": 1 }, "valor": "{{tipo_doc}}" },
+    { "tipo": "escribir", "objetivo": { "placeholder": "Número documento" }, "valor": "{{num_doc}}" },
+    { "tipo": "capturar", "nombre": "01-busqueda" },
+    { "tipo": "si", "titulo": "Buscar con la lupa o con Enter",
+      "condicion": { "existe": { "selector": "a[title*=\"Buscar\" i], button[title*=\"Buscar\" i], input[type=\"image\"][title*=\"Buscar\" i], img[title*=\"Buscar\" i]" } },
+      "entonces": [ { "tipo": "clic", "objetivo": { "selector": "a[title*=\"Buscar\" i], button[title*=\"Buscar\" i], input[type=\"image\"][title*=\"Buscar\" i], img[title*=\"Buscar\" i]" } } ],
+      "si_no": [ { "tipo": "presionar", "tecla": "Enter", "objetivo": { "placeholder": "Número documento" } } ] },
+
+    { "tipo": "esperar", "titulo": "2. Compañía y contratos", "objetivo": { "rol": "combobox", "indice": 2 }, "habilitado": true },
+    { "tipo": "seleccionar", "objetivo": { "rol": "combobox", "indice": 2 }, "texto": "Todas" },
+    { "tipo": "esperar", "texto": "Contratos", "opcional": true, "guardar_como": "hay_contratos" },
+    { "tipo": "si", "condicion": { "variable": "hay_contratos", "op": "igual", "valor": false }, "entonces": [
+      { "tipo": "capturar", "nombre": "02-sin-contratos" },
+      { "tipo": "leer", "guardar_como": "cuerpo", "objetivo": { "selector": "body" } },
+      { "tipo": "si", "condicion": { "variable": "cuerpo", "op": "coincide", "valor": "/no se encontr|no existe|sin resultados|no registra/i" },
+        "entonces": [ { "tipo": "error", "codigo": "PACIENTE_NO_ENCONTRADO", "mensaje": "No se encontró el documento {{tipo_doc}} {{num_doc}} en Sanitas" } ],
+        "si_no": [ { "tipo": "error", "clase": "portal", "codigo": "SIN_CONTRATOS", "mensaje": "El portal no mostró la lista de contratos tras la búsqueda" } ] }
+    ] },
+    { "tipo": "leer_lista", "guardar_como": "contratos_disponibles", "objetivo": { "selector": "label, span, td" }, "coincide": "/^(EPS|PAC|PMP|POS)\\s*-\\s*/", "unicos": true },
+    { "tipo": "si", "condicion": { "variable": "contratos_disponibles", "op": "vacio" }, "entonces": [
+      { "tipo": "error", "clase": "portal", "codigo": "SIN_CONTRATOS", "mensaje": "No se pudieron leer los contratos del paciente" }
+    ] },
+    { "tipo": "si", "titulo": "Elegir contrato", "condicion": { "variable": "contrato", "op": "igual", "valor": "EPS" },
+      "entonces": [ { "tipo": "elegir", "de": "{{contratos_disponibles}}", "guardar_como": "contrato_consultado", "preferir": [ { "variable": "it", "op": "coincide", "valor": "/^EPS\\b/i" } ] },
+                    { "tipo": "si", "condicion": { "variable": "contrato_consultado", "op": "coincide", "valor": "/^EPS\\b/i" }, "entonces": [], "si_no": [ { "tipo": "asignar", "variable": "contrato_consultado", "valor": null } ] } ],
+      "si_no": [
+        { "tipo": "si", "condicion": { "variable": "contrato", "op": "igual", "valor": "PAC" },
+          "entonces": [ { "tipo": "elegir", "de": "{{contratos_disponibles}}", "guardar_como": "contrato_consultado", "preferir": [ { "variable": "it", "op": "coincide", "valor": "/^PAC\\b/i" } ] },
+                        { "tipo": "si", "condicion": { "variable": "contrato_consultado", "op": "coincide", "valor": "/^PAC\\b/i" }, "entonces": [], "si_no": [ { "tipo": "asignar", "variable": "contrato_consultado", "valor": null } ] } ],
+          "si_no": [ { "tipo": "elegir", "de": "{{contratos_disponibles}}", "guardar_como": "contrato_consultado", "preferir": [ { "variable": "it", "op": "coincide", "valor": "/^EPS\\b/i" }, { "variable": "it", "op": "coincide", "valor": "/^PAC\\b/i" } ] } ] }
+      ] },
+    { "tipo": "si", "condicion": { "variable": "contrato_consultado", "op": "vacio" }, "entonces": [
+      { "tipo": "error", "codigo": "SIN_CONTRATO", "mensaje": "El paciente no tiene contrato {{contrato}} en Sanitas. Disponibles: {{contratos_disponibles}}" }
+    ] },
+    { "tipo": "transformar", "variable": "contratos_disponibles", "guardar_como": "n_contratos", "operaciones": [ { "largo": true } ] },
+    { "tipo": "si", "condicion": { "variable": "n_contratos", "op": "mayor", "valor": 1 }, "entonces": [
+      { "tipo": "agregar", "a": "observaciones", "valor": "Paciente con {{n_contratos}} contratos; se consultó: {{contrato_consultado}}" }
+    ] },
+    { "tipo": "clic", "objetivo": { "texto": "{{contrato_consultado}}" } },
+    { "tipo": "capturar", "nombre": "02-contratos" },
+    { "tipo": "clic", "objetivo": { "texto": "Continuar", "exacto": true } },
+
+    { "tipo": "esperar", "titulo": "3. Ficha del paciente", "texto": "Información usuario" },
+    { "tipo": "capturar", "nombre": "03-ficha" },
+    { "tipo": "leer", "guardar_como": "ficha.compania", "etiqueta": "Compañía" },
+    { "tipo": "leer", "guardar_como": "ficha.plan", "etiqueta": "Plan" },
+    { "tipo": "leer", "guardar_como": "ficha.contrato", "etiqueta": "Contrato" },
+    { "tipo": "leer", "guardar_como": "ficha.familia", "etiqueta": "Familia" },
+    { "tipo": "leer", "guardar_como": "ficha.estado", "etiqueta": "Estado" },
+    { "tipo": "leer", "guardar_como": "ficha.telefono", "etiqueta": "Teléfono principal" },
+    { "tipo": "leer", "guardar_como": "ficha.telefono2", "etiqueta": "Segundo Teléfono" },
+    { "tipo": "transformar", "variable": "ficha.telefono", "operaciones": [ { "por_defecto": "{{ficha.telefono2}}" } ] },
+    { "tipo": "leer", "guardar_como": "ficha.correo", "etiqueta": "Correo electrónico" },
+    { "tipo": "leer", "guardar_como": "ficha.fecha_nacimiento", "etiqueta": "Fecha Nacimiento", "como": "fecha" },
+    { "tipo": "leer", "guardar_como": "ficha.edad", "etiqueta": "Edad" },
+    { "tipo": "leer", "guardar_como": "ficha.sexo", "etiqueta": "Sexo" },
+    { "tipo": "leer_lineas", "guardar_como": "lineas", "despues_de": "/^Informaci[oó]n usuario/i" },
+    { "tipo": "buscar", "en": "{{lineas}}", "guardar_como": "ficha.nombre", "coincide": "/^[A-ZÁÉÍÓÚÑ_ ]+,[A-ZÁÉÍÓÚÑ_ ]+$/" },
+    { "tipo": "transformar", "variable": "ficha.nombre", "operaciones": [ { "reemplazar": ["/_/g", " "] }, { "reemplazar": ["/\\s*,\\s*/", ", "] } ] },
+
+    { "tipo": "clic", "titulo": "4. Servicios con autorización", "objetivo": { "texto": "Servicios con Autorización" } },
+    { "tipo": "esperar", "objetivo": { "selector": "table", "con_texto": "/N[uú]mero Autorizaci[oó]n/i" }, "opcional": true, "guardar_como": "hay_tabla" },
+    { "tipo": "capturar", "nombre": "04-autorizaciones" },
+    { "tipo": "asignar", "variable": "autorizaciones", "valor": [] },
+    { "tipo": "leer_tabla", "guardar_como": "filas", "objetivo": { "selector": "table", "con_texto": "/N[uú]mero Autorizaci[oó]n/i" }, "encabezados": false },
+    { "tipo": "para_cada", "titulo": "Interpretar filas: principal (número + fecha) y detalle (CUPS)", "lista": "{{filas}}", "como": "fila", "pasos": [
+      { "tipo": "buscar", "en": "{{fila.celdas}}", "guardar_como": "numero", "coincide": "/^\\d{6,}$/" },
+      { "tipo": "buscar", "en": "{{fila.celdas}}", "guardar_como": "fechas", "coincide": "/^\\d{2}\\/\\d{2}\\/\\d{4}$/", "todos": true },
+      { "tipo": "si", "condicion": { "todas": [ { "variable": "numero", "op": "no_vacio" }, { "variable": "fechas", "op": "no_vacio" } ] },
+        "entonces": [
+          { "tipo": "buscar", "en": "{{fila.celdas}}", "guardar_como": "estado", "coincide": "/^(APROBADA|ANULADA|VENCIDA|UTILIZADA|PENDIENTE|RECHAZADA|NEGADA)$/i" },
+          { "tipo": "transformar", "variable": "estado", "operaciones": [ { "por_defecto": "" }, { "mayusculas": true } ] },
+          { "tipo": "buscar", "en": "{{fila.celdas}}", "guardar_como": "cantidad", "coincide": "/^\\d{1,3}$/", "desde_el_final": true },
+          { "tipo": "transformar", "variable": "cantidad", "operaciones": [ { "numero": true } ] },
+          { "tipo": "buscar", "en": "{{fila.celdas}}", "guardar_como": "prestador", "coincide": "/S\\.?A\\.?S|LTDA|IPS|CLINICA|CENTRO/i" },
+          { "tipo": "transformar", "variable": "fechas", "guardar_como": "fechas_iso", "operaciones": [ { "fecha": true } ] },
+          { "tipo": "asignar", "variable": "vigencia", "valor": "{{fechas_iso.1}}" },
+          { "tipo": "decidir", "guardar_como": "vigente_hoy", "reglas": [
+            { "cuando": { "todas": [ { "variable": "estado", "op": "coincide", "valor": "APROBADA" }, { "alguna": [ { "variable": "vigencia", "op": "vacio" }, { "variable": "vigencia", "op": "mayor_igual", "valor": "{{hoy}}" } ] } ] }, "valor": true }
+          ], "por_defecto": false },
+          { "tipo": "decidir", "guardar_como": "vigente_en_cita", "reglas": [
+            { "cuando": { "variable": "fecha_cita", "op": "vacio" }, "valor": null },
+            { "cuando": { "todas": [ { "variable": "estado", "op": "coincide", "valor": "APROBADA" }, { "alguna": [ { "variable": "vigencia", "op": "vacio" }, { "variable": "vigencia", "op": "mayor_igual", "valor": "{{fecha_cita}}" } ] } ] }, "valor": true }
+          ], "por_defecto": false },
+          { "tipo": "agregar", "a": "autorizaciones", "valor": {
+            "numero": "{{numero}}", "fecha_aprobacion": "{{fechas_iso.0}}", "fecha_vigencia": "{{vigencia}}", "estado": "{{estado}}",
+            "prestador": "{{prestador}}", "cups": null, "descripcion": null, "cantidad": "{{cantidad}}",
+            "vigente_hoy": "{{vigente_hoy}}", "vigente_en_cita": "{{vigente_en_cita}}" } }
+        ],
+        "si_no": [
+          { "tipo": "buscar", "en": "{{fila.celdas}}", "guardar_como": "cups_fila", "coincide": "/^\\d{6}$/" },
+          { "tipo": "si", "condicion": { "todas": [ { "variable": "cups_fila", "op": "no_vacio" }, { "variable": "autorizaciones", "op": "no_vacio" } ] }, "entonces": [
+            { "tipo": "asignar", "variable": "autorizaciones.-1.cups", "valor": "{{cups_fila}}" },
+            { "tipo": "buscar", "en": "{{fila.celdas}}", "guardar_como": "descripcion", "coincide": "/[A-Za-z]{4,}/", "distinto_de": "{{cups_fila}}" },
+            { "tipo": "transformar", "variable": "descripcion", "operaciones": [ { "reemplazar": ["/\\s*-\\s*[\\d.,]+\\s*UVR$/i", ""] } ] },
+            { "tipo": "asignar", "variable": "autorizaciones.-1.descripcion", "valor": "{{descripcion}}" }
+          ] }
+        ] }
+    ] },
+    { "tipo": "si", "condicion": { "variable": "autorizaciones", "op": "vacio" }, "entonces": [
+      { "tipo": "agregar", "a": "observaciones", "valor": "El paciente no tiene autorizaciones registradas para este prestador" }
+    ] },
+
+    { "tipo": "asignar", "titulo": "5. Selección y copago", "variable": "seleccionada", "valor": null },
+    { "tipo": "asignar", "variable": "copago", "valor": null },
+    { "tipo": "si", "condicion": { "variable": "autorizaciones", "op": "no_vacio" }, "entonces": [
+      { "tipo": "elegir", "de": "{{autorizaciones}}", "guardar_como": "seleccionada", "como": "a", "ordenar_por": "fecha_aprobacion", "desc": true, "preferir": [
+        { "todas": [ { "variable": "cups", "op": "no_vacio" }, { "variable": "a.vigente_hoy", "op": "igual", "valor": true }, { "variable": "a.cups", "op": "igual", "valor": "{{cups}}" } ] },
+        { "todas": [ { "variable": "cups", "op": "no_vacio" }, { "variable": "a.cups", "op": "igual", "valor": "{{cups}}" } ] },
+        { "variable": "a.vigente_hoy", "op": "igual", "valor": true }
+      ] },
+      { "tipo": "si", "condicion": { "todas": [ { "variable": "cups", "op": "no_vacio" }, { "variable": "seleccionada.cups", "op": "distinto", "valor": "{{cups}}" } ] }, "entonces": [
+        { "tipo": "agregar", "a": "observaciones", "valor": "Ninguna autorización cubre el CUPS {{cups}}; se muestra la más reciente vigente" }
+      ] },
+      { "tipo": "clic", "objetivo": { "selector": "input[type=\"radio\"], img, a", "dentro_de": { "selector": "tr", "con_texto": "{{seleccionada.numero}}", "dentro_de": { "selector": "table", "con_texto": "/N[uú]mero Autorizaci[oó]n/i" } } } },
+      { "tipo": "esperar", "texto": "/N[uú]mero de Autorizaci[oó]n\\s*Seleccionada/i", "opcional": true, "guardar_como": "hay_copago" },
+      { "tipo": "si", "condicion": { "variable": "hay_copago", "op": "igual", "valor": true },
+        "entonces": [
+          { "tipo": "leer", "guardar_como": "copago.condicion", "etiqueta": "Condiciones de pago" },
+          { "tipo": "leer", "guardar_como": "copago.valor_recaudo", "etiqueta": "Recaudo de pago", "como": "numero" },
+          { "tipo": "leer", "guardar_como": "copago.porcentaje_copago", "etiqueta": "Porcentaje Copago", "como": "numero" },
+          { "tipo": "leer", "guardar_como": "copago.valor_pago_compartido", "etiqueta": "Valor pesos pago compartido", "como": "numero" },
+          { "tipo": "leer", "guardar_como": "copago.tope_maximo", "etiqueta": "Tope máximo copagos", "como": "numero" }
+        ],
+        "si_no": [ { "tipo": "agregar", "a": "observaciones", "valor": "El portal no mostró el bloque de copago al seleccionar la autorización" } ] },
+      { "tipo": "capturar", "nombre": "05-copago" }
+    ] },
+
+    { "tipo": "decidir", "titulo": "Semáforo", "guardar_como": "semaforo", "reglas": [
+      { "cuando": { "no": { "variable": "ficha.estado", "op": "coincide", "valor": "/VIGENTE|ACTIVO/i" } }, "valor": "ROJO" },
+      { "cuando": { "variable": "seleccionada", "op": "vacio" }, "valor": "ROJO" },
+      { "cuando": { "todas": [ { "variable": "fecha_cita", "op": "no_vacio" }, { "no": { "variable": "seleccionada.vigente_en_cita", "op": "igual", "valor": true } } ] }, "valor": "ROJO" },
+      { "cuando": { "todas": [ { "variable": "fecha_cita", "op": "vacio" }, { "no": { "variable": "seleccionada.vigente_hoy", "op": "igual", "valor": true } } ] }, "valor": "ROJO" },
+      { "cuando": { "todas": [ { "variable": "cups", "op": "no_vacio" }, { "variable": "seleccionada.cups", "op": "distinto", "valor": "{{cups}}" } ] }, "valor": "AMARILLO" },
+      { "cuando": { "todas": [ { "variable": "n_contratos", "op": "mayor", "valor": 1 }, { "variable": "contrato", "op": "igual", "valor": "AUTO" } ] }, "valor": "AMARILLO" }
+    ], "por_defecto": "VERDE" }
+  ],
+  "resultado": {
+    "paciente": {
+      "nombre": "{{ficha.nombre}}", "tipo_doc": "{{tipo_doc}}", "num_doc": "{{num_doc}}",
+      "estado_afiliacion": "{{ficha.estado}}", "compania": "{{ficha.compania}}", "plan": "{{ficha.plan}}", "contrato": "{{ficha.contrato}}",
+      "familia": "{{ficha.familia}}", "telefono": "{{ficha.telefono}}", "correo": "{{ficha.correo}}",
+      "fecha_nacimiento": "{{ficha.fecha_nacimiento}}", "edad": "{{ficha.edad}}", "sexo": "{{ficha.sexo}}"
+    },
+    "contrato_consultado": "{{contrato_consultado}}",
+    "contratos_disponibles": "{{contratos_disponibles}}",
+    "autorizaciones": "{{autorizaciones}}",
+    "autorizacion_seleccionada": "{{seleccionada}}",
+    "copago": "{{copago}}",
+    "semaforo": "{{semaforo}}",
+    "observaciones": "{{observaciones}}"
+  }
+}

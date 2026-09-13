@@ -8,3 +8,6 @@ export type { ClienteDoc, ModuloCliente } from './modelos/Cliente.js';
 export { Trabajo } from './modelos/Trabajo.js';
 export type { TrabajoDoc, EstadoTrabajo, ErrorTrabajo } from './modelos/Trabajo.js';
 export { Sesion } from './modelos/Sesion.js';
+export { Flujo, ESTADOS_FLUJO } from './modelos/Flujo.js';
+export type { FlujoDoc } from './modelos/Flujo.js';
+export * from './flujos/index.js';

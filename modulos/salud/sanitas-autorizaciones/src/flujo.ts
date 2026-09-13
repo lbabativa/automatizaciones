@@ -210,28 +210,30 @@ function elegirContrato(disponibles: string[], preferencia: ParametrosSanitas['c
   return eps ?? pac ?? disponibles[0] ?? null;
 }
 
-/** Lee pares "Etiqueta: valor" del DOM: busca el elemento cuyo texto empieza por la etiqueta y toma el siguiente. */
+/**
+ * Lee pares "Etiqueta: valor" del DOM: busca el elemento cuyo texto empieza por la etiqueta y toma el siguiente.
+ * El código va como texto porque, bajo tsx/esbuild, una función con constantes internas llega al
+ * navegador con un helper __name que allí no existe.
+ */
+const CODIGO_LEER_PARES = `(labels) => {
+  const limpiar = (s) => (s ?? '').replace(/\\s+/g, ' ').trim();
+  const nodos = Array.from(document.querySelectorAll('td, th, span, label, div, b, strong'));
+  const salida = {};
+  for (const label of labels) {
+    salida[label] = null;
+    const nodo = nodos.find((n) => n.children.length === 0 && limpiar(n.textContent).replace(/:$/, '').toLowerCase().startsWith(label.toLowerCase()));
+    if (!nodo) continue;
+    const propio = limpiar(nodo.textContent);
+    const enLinea = propio.includes(':') ? limpiar(propio.split(':').slice(1).join(':')) : '';
+    if (enLinea) { salida[label] = enLinea; continue; }
+    let sig = nodo.nextElementSibling ?? (nodo.parentElement ? nodo.parentElement.nextElementSibling : null);
+    while (sig && !limpiar(sig.textContent)) sig = sig.nextElementSibling;
+    salida[label] = sig ? limpiar(sig.textContent) : null;
+  }
+  return salida;
+}`;
 async function leerPares(page: Page, etiquetas: string[]): Promise<Record<string, string | null>> {
-  return page.evaluate((labels: string[]) => {
-    const limpiar = (s: string | null | undefined) => (s ?? '').replace(/\s+/g, ' ').trim();
-    const nodos = Array.from(document.querySelectorAll('td, th, span, label, div, b, strong')) as HTMLElement[];
-    const salida: Record<string, string | null> = {};
-    for (const label of labels) {
-      salida[label] = null;
-      const nodo = nodos.find((n) => n.children.length === 0 && limpiar(n.textContent).replace(/:$/, '').toLowerCase().startsWith(label.toLowerCase()));
-      if (!nodo) continue;
-      const propio = limpiar(nodo.textContent);
-      const enLinea = propio.includes(':') ? limpiar(propio.split(':').slice(1).join(':')) : '';
-      if (enLinea) {
-        salida[label] = enLinea;
-        continue;
-      }
-      let sig: Element | null = nodo.nextElementSibling ?? nodo.parentElement?.nextElementSibling ?? null;
-      while (sig && !limpiar(sig.textContent)) sig = sig.nextElementSibling;
-      salida[label] = sig ? limpiar(sig.textContent) : null;
-    }
-    return salida;
-  }, etiquetas);
+  return page.evaluate(`(${CODIGO_LEER_PARES})(${JSON.stringify(etiquetas)})`) as Promise<Record<string, string | null>>;
 }
 
 async function leerNombre(page: Page): Promise<string | null> {
