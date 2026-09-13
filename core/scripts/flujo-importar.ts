@@ -33,7 +33,11 @@ try {
   await Flujo.updateOne(
     { nombre: def.nombre },
     values.publicar
-      ? { $set: { estado: 'publicado', version, definicion: def, borrador: null, publicadoEn: new Date() } }
+      ? {
+          $set: { estado: 'publicado', version, definicion: def, borrador: null, publicadoEn: new Date() },
+          // Misma bitácora de versiones que "Publicar" en la consola (últimas 30).
+          $push: { versiones: { $each: [{ version, definicion: def, publicadoEn: new Date() }], $slice: -30 } },
+        }
       : { $set: { borrador: def }, $setOnInsert: { estado: 'borrador', version: 0 } },
     { upsert: true },
   );
