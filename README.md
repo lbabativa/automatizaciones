@@ -206,3 +206,19 @@ En `/admin/clientes` se crean clientes, se genera o rota su clave de API, se hab
 Las credenciales que se guardan desde la consola se cifran con la **clave pública del worker** (X25519 + AES-256-GCM, formato `v2.`), derivada de `MASTER_KEY` y publicada por el worker al arrancar en la colección `configuracion`. La API en Vercel puede cifrar pero nunca descifrar; el worker descifra tanto este formato como el simétrico clásico de los scripts. Por eso, antes de cargar credenciales desde la web, hay que haber arrancado el worker al menos una vez.
 
 Entrega 2 del grabador: **pausar y reanudar** (botón en la barra, Ctrl+Shift+P o desde la consola; en pausa no se graba nada, útil para navegar o iniciar sesión), **deshacer** el último paso (↶ o Ctrl+Shift+Z), gestos adicionales: Shift+clic crea `esperar`, Ctrl+clic crea un `si` con condición "existe" listo para llenar, Alt+Shift+clic sobre una tabla crea `leer_tabla`. En la consola se puede quitar cualquier paso grabado o desmarcarlo antes de añadir. En el editor, cada paso tiene una casilla: los marcados se pueden **envolver en `si` o en `para_cada`** o quitar en grupo.
+
+### Asistente de nueva automatización
+
+`/admin/nueva` guía el alta completa en siete pasos: primero el cliente y sus códigos, después el flujo. Cada paso se guarda como borrador al continuar y el enlace (`?c=<cliente>&f=<flujo>&paso=<paso>`) permite retomarlo; desde el editor de flujos, "Continuar en el asistente" abre el mismo punto.
+
+1. **Cliente y códigos**: elegir o crear el cliente. El identificador se genera del nombre (sin la forma societaria: "Clínica Norte S.A.S." → `clinica-norte`) y la clave de API se muestra una sola vez al crearla o rotarla.
+2. **Portal y acceso**: qué hace el robot y la URL de inicio; el portal y el nombre técnico se deducen. Credenciales del cliente para ese portal (cifradas con la clave pública del worker) y el texto que confirma la sesión, o "sin inicio de sesión".
+3. **Datos de entrada**: parámetros con atajos (tipo y número de documento, fecha). Los valores de prueba viven solo en la pestaña del navegador (`sessionStorage`), no en el flujo.
+4. **Grabar**: indica si hay un robot con ventana conectado y sigue la grabación en vivo. Si detecta usuario y contraseña, propone moverlos a `sesion.login`; `credenciales_requeridas` se calcula a partir de los pasos.
+5. **Qué devuelve**: elige qué variables leídas van en `resultado` y con qué nombre.
+6. **Probar**: prueba con el robot real y bitácora en vivo; cuenta como correcta si terminó después del último cambio del borrador.
+7. **Publicar y entregar**: revisión (credenciales que faltan, valores `{{config.*}}` del cliente), publica, habilita para el cliente y entrega la URL, la clave y ejemplos en cURL, JavaScript y Python. Los ejemplos usan valores ficticios, nunca los de prueba.
+
+La ficha del cliente (`/admin/clientes`) muestra los mismos códigos de integración para cada automatización habilitada y genera el identificador al escribir el nombre.
+
+Cada worker publica un latido cada 30 s en `configuracion` (`worker:<WORKER_ID>`, con `ventana: true` si corre con `HEADLESS=false`); la consola lo lee en `GET /admin/api/estado` (`workers`). Al grabar, cualquier valor escrito que coincida con una credencial del cliente queda como `{{credenciales.<campo>}}`, y lo escrito en un campo de contraseña nunca se guarda en claro.

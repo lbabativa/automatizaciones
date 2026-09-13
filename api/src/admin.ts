@@ -125,6 +125,15 @@ admin.get('/clientes', async (c) => {
   const html = await leerPagina('clientes.html');
   return html ? c.html(html) : c.text('No se encontró api/public/clientes.html', 500);
 });
+admin.get('/nueva', async (c) => {
+  const html = await leerPagina('asistente.html');
+  return html ? c.html(html) : c.text('No se encontró api/public/asistente.html', 500);
+});
+// Código compartido por las páginas: ejemplos de integración para entregar al cliente.
+admin.get('/integracion.js', async (c) => {
+  const js = await leerPagina('integracion.js');
+  return js ? c.body(js, 200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache' }) : c.text('No encontrado', 404);
+});
 
 // Inicio de sesión del operador. Responde igual de lento si falla, para no dar pistas.
 admin.post('/api/login', async (c) => {
@@ -177,7 +186,7 @@ admin.get('/api/yo', (c) => c.json({ usuario: usuarioActual(c) }));
 admin.get('/api/estado', async (c) => {
   const db = mongoose.connection.readyState === 1;
   const [pendientes, enProceso] = db ? await Promise.all([Trabajo.countDocuments({ estado: 'pendiente' }), Trabajo.countDocuments({ estado: 'en_proceso' })]) : [0, 0];
-  return c.json({ ok: db, pendientes, enProceso, modulos: db ? await listarModulosDisponibles() : [] });
+  return c.json({ ok: db, pendientes, enProceso, modulos: db ? await listarModulosDisponibles() : [], workers: db ? await workersConectados() : [] });
 });
 
 admin.get('/api/clientes', async (c) => {
@@ -204,6 +213,22 @@ admin.get('/api/clientes', async (c) => {
 // Gestión de clientes: alta, clave de API, credenciales por portal (cifradas con la
 // clave pública del worker: la consola nunca puede leerlas).
 // ---------------------------------------------------------------------------------
+
+/** Workers con latido reciente (cada 30 s, o su grabación en curso). `ventana`: puede grabar. */
+async function workersConectados() {
+  const docs = await Configuracion.find({ clave: /^worker:/ }).lean<Array<{ valor?: { id: string; ventana: boolean; visto: Date } }>>();
+  const grabando = await Grabacion.find({ estado: 'grabando' }).select('workerId ultimaSenal').lean<GrabacionDoc[]>();
+  const limite = Date.now() - 3 * 60_000;
+  return docs
+    .map((d) => d.valor)
+    .filter((w): w is { id: string; ventana: boolean; visto: Date } => Boolean(w?.id))
+    .map((w) => {
+      const g = grabando.find((x) => x.workerId === w.id && x.ultimaSenal);
+      const visto = g && new Date(g.ultimaSenal!).getTime() > new Date(w.visto).getTime() ? g.ultimaSenal! : w.visto;
+      return { id: w.id, ventana: w.ventana, visto, grabando: Boolean(g) };
+    })
+    .filter((w) => new Date(w.visto).getTime() > limite);
+}
 
 async function clavePublica(): Promise<string | null> {
   const doc = await Configuracion.findOne({ clave: 'clavePublica' }).lean<{ valor?: string }>();

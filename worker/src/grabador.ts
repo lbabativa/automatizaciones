@@ -109,7 +109,7 @@ export const CODIGO_GRABADOR = `(() => {
     if (textual(el)) {
       if (conEnter.has(el)) { conEnter.delete(el); return; }
       const s = sugerir(el);
-      if (s.length) enviar({ tipo: 'escribir', objetivo: s[0], alternativas: s.slice(1, 4), valor: el.value, titulo: tituloDe(el, 'Escribir en') });
+      if (s.length) enviar({ tipo: 'escribir', objetivo: s[0], alternativas: s.slice(1, 4), valor: el.value, sensible: el.type === 'password', titulo: tituloDe(el, 'Escribir en') });
     }
   }, true);
 
@@ -121,7 +121,7 @@ export const CODIGO_GRABADOR = `(() => {
     if (e.key === 'Enter' && textual(e.target)) {
       const el = e.target;
       const s = sugerir(el);
-      if (s.length) { enviar({ tipo: 'escribir', objetivo: s[0], alternativas: s.slice(1, 4), valor: el.value, tecla: 'Enter', titulo: tituloDe(el, 'Escribir en') + ' y Enter' }); conEnter.add(el); }
+      if (s.length) { enviar({ tipo: 'escribir', objetivo: s[0], alternativas: s.slice(1, 4), valor: el.value, sensible: el.type === 'password', tecla: 'Enter', titulo: tituloDe(el, 'Escribir en') + ' y Enter' }); conEnter.add(el); }
     }
   }, true);
 
@@ -155,14 +155,24 @@ export const CODIGO_GRABADOR = `(() => {
 
 type PasoGrabado = Record<string, unknown> & { tipo: string };
 
-/** Sustituye valores de prueba por plantillas {{parametro}} y limpia campos internos. */
-export function normalizarPaso(paso: PasoGrabado, parametros: Record<string, unknown>): PasoGrabado {
+/**
+ * Sustituye valores de prueba por plantillas {{parametro}}, y usuario o contraseña del
+ * cliente por {{credenciales.campo}}: un flujo grabado nunca guarda credenciales en claro.
+ * Lo escrito en un campo de contraseña que no coincide con ninguna credencial también se
+ * reemplaza por {{credenciales.password}}.
+ */
+export function normalizarPaso(paso: PasoGrabado, parametros: Record<string, unknown>, credenciales: Record<string, string> = {}): PasoGrabado {
   const p: PasoGrabado = { ...paso };
   const nombreDe = (valor: unknown) => Object.entries(parametros).find(([, v]) => v !== '' && v !== undefined && String(v) === String(valor))?.[0];
+  const credencialDe = (valor: unknown) => Object.entries(credenciales).find(([, v]) => v !== '' && String(v) === String(valor))?.[0];
   if (p.tipo === 'escribir' && typeof p.valor === 'string') {
-    const n = nombreDe(p.valor);
-    if (n) p.valor = `{{${n}}}`;
+    const c = p.valor !== '' ? credencialDe(p.valor) : undefined;
+    const n = c ? undefined : nombreDe(p.valor);
+    if (c) p.valor = `{{credenciales.${c}}}`;
+    else if (p.sensible) p.valor = '{{credenciales.password}}';
+    else if (n) p.valor = `{{${n}}}`;
   }
+  delete p.sensible;
   if (p.tipo === 'seleccionar') {
     const n = nombreDe(p.valor_opcion) ?? nombreDe(p.texto);
     if (n) {
@@ -176,7 +186,7 @@ export function normalizarPaso(paso: PasoGrabado, parametros: Record<string, unk
 }
 
 const contextosConBinding = new WeakSet<BrowserContext>();
-let grabacionActiva: { id: GrabacionDoc['_id']; n: number; fin: boolean; parametros: Record<string, unknown> } | null = null;
+let grabacionActiva: { id: GrabacionDoc['_id']; n: number; fin: boolean; parametros: Record<string, unknown>; credenciales: Record<string, string> } | null = null;
 
 /** Toma una grabación solicitada. Solo workers con ventana visible. */
 export async function reclamarGrabacion(workerId: string): Promise<GrabacionDoc | null> {
@@ -204,7 +214,7 @@ export async function grabar(g: GrabacionDoc, log: (m: string) => void): Promise
   const credenciales = Object.fromEntries(Object.entries(credCifradas).map(([k, v]) => [k, descifrar(v)]));
 
   const ctx = await obtenerContexto(cliente.slug, g.portal, false);
-  grabacionActiva = { id, n: 0, fin: false, parametros: (g.parametrosPrueba ?? {}) as Record<string, unknown> };
+  grabacionActiva = { id, n: 0, fin: false, parametros: (g.parametrosPrueba ?? {}) as Record<string, unknown>, credenciales };
   if (!contextosConBinding.has(ctx)) {
     await ctx.exposeBinding('__startiaGrabar', async (_fuente, paso: PasoGrabado) => {
       const activa = grabacionActiva;
@@ -226,7 +236,7 @@ export async function grabar(g: GrabacionDoc, log: (m: string) => void): Promise
         }
         return;
       }
-      const normal = normalizarPaso(paso, activa.parametros);
+      const normal = normalizarPaso(paso, activa.parametros, activa.credenciales);
       activa.n++;
       await Grabacion.updateOne({ _id: activa.id }, { $push: { pasos: normal } }).catch(() => undefined);
       log(`grabación ${String(activa.id).slice(-6)}: paso ${activa.n} ${normal.tipo}${normal.titulo ? ` · ${normal.titulo}` : ''}`);

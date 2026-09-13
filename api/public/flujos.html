@@ -157,13 +157,14 @@ pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;pad
 <body>
 <header>
   <div class="marca"><div class="logo">S</div><div><b>Consola StartIA</b><small>Automatizaciones</small></div></div>
-  <nav><a class="chip" href="/admin">Consultas</a><a class="chip" style="background:var(--accent-soft);color:var(--accent-ink)">Flujos</a><a class="chip" href="/admin/clientes">Clientes</a></nav>
+  <nav style="display:flex;gap:4px;margin-left:10px;align-items:center"><a class="chip" style="text-decoration:none" href="/admin/clientes">Clientes</a><a class="chip" style="text-decoration:none;background:var(--accent-soft);color:var(--accent-ink)" aria-current="page">Flujos</a><a class="chip" style="text-decoration:none" href="/admin">Consultas</a><a class="chip" style="text-decoration:none;background:var(--accent);color:#fff;margin-left:6px" href="/admin/nueva">＋ Nueva automatización</a></nav>
   <div class="der"><span id="usuario" class="mono"></span><button class="ghost" id="btn-salir">Salir</button></div>
 </header>
 
 <div class="app">
   <aside>
-    <h2>Flujos <button class="mini sec" id="btn-nuevo">+ Nuevo</button></h2>
+    <h2>Flujos <button class="mini ghost" id="btn-nuevo" title="Flujo vacío, directo en el editor">+ En blanco</button></h2>
+    <a href="/admin/nueva" class="chip" style="display:flex;justify-content:center;background:var(--accent);color:#fff;padding:8px 10px;margin-bottom:12px">＋ Nueva con el asistente</a>
     <div class="lista-flujos" id="lista"></div>
     <p class="ayuda" style="margin-top:14px">Los módulos en código (<span id="en-codigo" class="mono"></span>) no se editan aquí.</p>
   </aside>
@@ -185,6 +186,7 @@ pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;pad
         </div>
       </div>
       <div id="menu-mas" class="card" hidden style="position:absolute;right:24px;margin-top:-8px;padding:8px;display:flex;flex-direction:column;gap:4px;z-index:6">
+        <button class="ghost" id="btn-asistente">Continuar en el asistente</button>
         <button class="ghost" id="btn-duplicar">Duplicar como flujo nuevo</button>
         <button class="ghost" id="btn-descartar">Descartar borrador</button>
         <button class="ghost" id="btn-eliminar" style="color:var(--crit)">Eliminar flujo</button>
@@ -736,6 +738,11 @@ document.addEventListener('click', (e) => { if (!e.target.closest('#btn-mas,#men
 $('#btn-descartar').onclick = async () => { if (!confirm('¿Descartar los cambios del borrador?')) return; try { const r = await api('/flujos/' + DEF.nombre + '/descartar', { method: 'POST' }); SUCIO = false; await cargarLista(); if (r.eliminado) { DEF = null; $('#ed').hidden = true; $('#sin-flujo').hidden = false; } else abrir(DEF.nombre); } catch (e) { mensaje(esc(e.message), 'error'); } };
 $('#btn-eliminar').onclick = async () => { if (!confirm(`¿Eliminar el flujo "${DEF.nombre}" por completo?`)) return; try { await api('/flujos/' + DEF.nombre, { method: 'DELETE' }); SUCIO = false; DEF = null; $('#ed').hidden = true; $('#sin-flujo').hidden = false; await cargarLista(); } catch (e) { mensaje(esc(e.message), 'error'); } };
 $('#btn-duplicar').onclick = () => { const n = prompt('Nombre del flujo nuevo (minúsculas y guiones):', DEF.nombre + '-copia'); if (!n) return; if (!/^[a-z][a-z0-9-]*$/.test(n)) return alert('Nombre inválido'); DEF = { ...JSON.parse(JSON.stringify(DEF)), nombre: n, titulo: DEF.titulo + ' (copia)' }; META = null; SUCIO = true; pintarEditor(); mensaje('Copia creada en memoria. Guarde el borrador para conservarla.', 'aviso'); };
+$('#btn-asistente').onclick = () => {
+  if (SUCIO && !confirm('Hay cambios sin guardar. ¿Salir sin guardarlos?')) return;
+  SUCIO = false;
+  location.href = '/admin/nueva?f=' + encodeURIComponent(DEF.nombre) + '&paso=grabar';
+};
 $('#btn-nuevo').onclick = () => { $('#modal-nuevo').hidden = false; $('#n-error').hidden = true; $('#n-nombre').focus(); };
 $('#n-cancelar').onclick = () => ($('#modal-nuevo').hidden = true);
 $('#form-nuevo').onsubmit = (e) => {

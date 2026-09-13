@@ -80,7 +80,7 @@ aside h2 button{margin-left:auto}
 <body>
 <header>
   <div class="marca"><div class="logo">S</div><div><b>Consola StartIA</b><small>Automatizaciones</small></div></div>
-  <nav><a class="chip" href="/admin">Consultas</a><a class="chip" href="/admin/flujos">Flujos</a><a class="chip" style="background:var(--accent-soft);color:var(--accent-ink)">Clientes</a></nav>
+  <nav><a class="chip" style="background:var(--accent-soft);color:var(--accent-ink)" aria-current="page">Clientes</a><a class="chip" href="/admin/flujos">Flujos</a><a class="chip" href="/admin">Consultas</a><a class="chip" href="/admin/nueva" style="background:var(--accent);color:#fff;margin-left:6px">＋ Nueva automatización</a></nav>
   <div class="der"><span id="usuario" class="mono"></span><button class="ghost" id="btn-salir">Salir</button></div>
 </header>
 
@@ -94,7 +94,7 @@ aside h2 button{margin-left:auto}
   <main class="editor">
     <div id="sin-cliente" class="vacio">Elija un cliente o cree uno nuevo.</div>
     <div id="ed" hidden>
-      <div class="barra"><h1 id="ed-nombre"></h1><span id="ed-estado" class="chip"></span><div class="acciones"><button class="ghost" id="btn-eliminar" style="color:var(--crit)">Eliminar</button></div></div>
+      <div class="barra"><h1 id="ed-nombre"></h1><span id="ed-estado" class="chip"></span><div class="acciones"><a class="chip" id="btn-disenar" href="/admin/nueva" style="background:var(--accent);color:#fff;padding:7px 12px">＋ Diseñar automatización</a><button class="ghost" id="btn-eliminar" style="color:var(--crit)">Eliminar</button></div></div>
       <div id="ed-msg"></div>
 
       <div class="card">
@@ -113,6 +113,12 @@ aside h2 button{margin-left:auto}
         <p class="ayuda">Con esta clave el sistema del cliente llama a la API (<span class="mono">x-api-key</span>). Solo se guarda su huella: si se pierde, hay que generar otra.</p>
         <div id="c-clave" style="margin-top:8px"></div>
         <div style="display:flex;gap:8px;margin-top:10px"><button class="sec" id="btn-rotar">Generar clave nueva</button></div>
+      </div>
+
+      <div class="card">
+        <h3>Códigos de integración</h3>
+        <p class="ayuda">Lo que se entrega al equipo técnico del cliente para llamar cada automatización habilitada: dirección, clave y un ejemplo listo para copiar.</p>
+        <div id="c-integracion" style="margin-top:10px"></div>
       </div>
 
       <div class="card">
@@ -135,18 +141,23 @@ aside h2 button{margin-left:auto}
 <div id="modal-nuevo" class="modal-fondo" hidden>
   <form class="modal" id="form-nuevo">
     <h3>Cliente nuevo</h3>
-    <label>Identificador (minúsculas y guiones)</label><input id="n-slug" class="mono" pattern="[a-z][a-z0-9-]{1,40}" required placeholder="clinica-norte">
-    <label>Nombre</label><input id="n-nombre" required placeholder="Clínica Norte SAS">
+    <label>Nombre</label><input id="n-nombre" required placeholder="Clínica Norte SAS" autocomplete="off">
+    <label>Identificador <span class="op">(se genera del nombre; no se puede cambiar después)</span></label><input id="n-slug" class="mono" pattern="[a-z][a-z0-9-]{1,40}" required placeholder="clinica-norte" autocomplete="off">
+    <p class="ayuda">Su clave de API empezará por <span class="mono" id="n-prefijo">rpa_…_</span></p>
     <label>NIT <span class="op">(opcional)</span></label><input id="n-nit">
     <div id="n-error" class="error" hidden></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button type="button" class="ghost" id="n-cancelar">Cancelar</button><button type="submit">Crear</button></div>
   </form>
 </div>
 
+<script src="/admin/integracion.js"></script>
 <script>
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 let CLIENTES = [], PORTALES = [], MODULOS = [], HAY_CLAVE = false, SEL = null;
+// Claves de API completas generadas en esta visita: solo en memoria, para los ejemplos de integración.
+const CLAVES = {};
+const htmlClaveCompleta = (k) => `<div class="clave">${esc(k)}</div><div style="display:flex;gap:8px;align-items:center;margin-top:6px"><button class="mini" id="btn-copiar-clave">Copiar clave</button><span class="ayuda" style="margin:0">Cópiela ahora y entréguela por un canal seguro: no se vuelve a mostrar.</span></div>`;
 
 async function api(ruta, opciones = {}) {
   const r = await fetch('/admin/api' + ruta, { ...opciones, credentials: 'same-origin', headers: { 'content-type': 'application/json', ...(opciones.headers || {}) } });
@@ -174,8 +185,10 @@ function abrir(slug) {
   $('#ed-nombre').textContent = c.nombre;
   $('#ed-estado').className = 'chip ' + (c.activo ? 'ok' : 'crit'); $('#ed-estado').textContent = c.activo ? 'activo' : 'inactivo';
   $('#c-slug').value = c.slug; $('#c-nombre').value = c.nombre; $('#c-nit').value = c.nit || ''; $('#c-activo').value = String(c.activo);
-  $('#c-clave').innerHTML = `<span class="mono">${esc(c.apiKeyPrefijo || 'rpa_' + c.slug + '_')}••••••••••••</span>`;
-  pintarPortales(c); pintarModulos(c);
+  $('#c-clave').innerHTML = CLAVES[c.slug] ? htmlClaveCompleta(CLAVES[c.slug]) : `<span class="mono">${esc(c.apiKeyPrefijo || 'rpa_' + c.slug + '_')}••••••••••••</span>`;
+  if (CLAVES[c.slug]) $('#btn-copiar-clave').onclick = (e) => StartiaIntegracion.copiar(CLAVES[c.slug], e.currentTarget);
+  $('#btn-disenar').href = '/admin/nueva?c=' + encodeURIComponent(c.slug) + (c.modulos.length ? '' : '&paso=portal');
+  pintarPortales(c); pintarModulos(c); pintarIntegracion(c);
 }
 
 function pintarPortales(c) {
@@ -213,6 +226,20 @@ $('#btn-portal').onclick = () => {
   pintarPortales(CLIENTES.find((x) => x.slug === SEL));
 };
 
+function pintarIntegracion(c) {
+  const box = $('#c-integracion');
+  const activos = c.modulos.filter((m) => m.activo).map((m) => MODULOS.find((x) => x.nombre === m.nombre)).filter(Boolean);
+  if (!activos.length) { box.innerHTML = `<p class="ayuda">Todavía no tiene automatizaciones habilitadas. <a href="/admin/nueva?c=${encodeURIComponent(c.slug)}&paso=portal">Diseñe la primera con el asistente</a>.</p>`; return; }
+  box.innerHTML = `${activos.length > 1 ? `<label style="margin-top:0">Automatización</label><select id="int-modulo">${activos.map((m) => `<option value="${esc(m.nombre)}">${esc(m.descripcion || m.nombre)} · ${esc(m.portal)}/${esc(m.nombre)}</option>`).join('')}</select>` : ''}<div id="int-codigo" style="margin-top:10px"></div>${CLAVES[c.slug] ? '' : '<p class="ayuda">Los ejemplos llevan <span class="mono">SU_CLAVE_DE_API</span>: la clave completa solo se ve al generarla.</p>'}`;
+  const pintar = () => {
+    const nombre = $('#int-modulo') ? $('#int-modulo').value : activos[0].nombre;
+    const m = activos.find((x) => x.nombre === nombre);
+    StartiaIntegracion.pintar($('#int-codigo'), { base: location.origin, portal: m.portal, modulo: m.nombre, apiKey: CLAVES[c.slug], parametros: m.parametros || [] });
+  };
+  if ($('#int-modulo')) $('#int-modulo').onchange = pintar;
+  pintar();
+}
+
 function pintarModulos(c) {
   const box = $('#c-modulos'); box.innerHTML = '';
   if (!MODULOS.length) { box.innerHTML = '<p class="ayuda">No hay automatizaciones publicadas.</p>'; return; }
@@ -237,7 +264,7 @@ $('#btn-guardar').onclick = async () => {
 };
 $('#btn-rotar').onclick = async () => {
   if (!confirm('La clave actual dejará de funcionar de inmediato. ¿Generar una nueva?')) return;
-  try { const { apiKey } = await api(`/clientes/${SEL}/rotar-clave`, { method: 'POST' }); $('#c-clave').innerHTML = `<div class="clave">${esc(apiKey)}</div><p class="ayuda">Cópiela ahora: no se vuelve a mostrar.</p>`; }
+  try { const { apiKey } = await api(`/clientes/${SEL}/rotar-clave`, { method: 'POST' }); CLAVES[SEL] = apiKey; await cargar(); }
   catch (e) { mensaje(esc(e.message), 'error'); }
 };
 $('#btn-eliminar').onclick = async () => {
@@ -245,16 +272,20 @@ $('#btn-eliminar').onclick = async () => {
   try { await api('/clientes/' + SEL, { method: 'DELETE' }); SEL = null; $('#ed').hidden = true; $('#sin-cliente').hidden = false; await cargar(); }
   catch (e) { mensaje(esc(e.message), 'error'); }
 };
-$('#btn-nuevo').onclick = () => { $('#modal-nuevo').hidden = false; $('#n-error').hidden = true; $('#n-slug').focus(); };
+let slugManual = false;
+const prefijoNuevo = () => ($('#n-prefijo').textContent = `rpa_${$('#n-slug').value || '…'}_`);
+$('#n-nombre').oninput = () => { if (!slugManual) $('#n-slug').value = StartiaIntegracion.identificadorCliente($('#n-nombre').value); prefijoNuevo(); };
+$('#n-slug').oninput = () => { slugManual = $('#n-slug').value !== ''; prefijoNuevo(); };
+$('#btn-nuevo').onclick = () => { slugManual = false; prefijoNuevo(); $('#modal-nuevo').hidden = false; $('#n-error').hidden = true; $('#n-nombre').focus(); };
 $('#n-cancelar').onclick = () => ($('#modal-nuevo').hidden = true);
 $('#form-nuevo').onsubmit = async (e) => {
   e.preventDefault();
   try {
     const r = await api('/clientes', { method: 'POST', body: JSON.stringify({ slug: $('#n-slug').value.trim(), nombre: $('#n-nombre').value.trim(), nit: $('#n-nit').value.trim() }) });
     $('#modal-nuevo').hidden = true; $('#form-nuevo').reset();
+    CLAVES[r.slug] = r.apiKey;
     await cargar(r.slug);
-    $('#c-clave').innerHTML = `<div class="clave">${esc(r.apiKey)}</div><p class="ayuda">Clave de API del cliente. Cópiela ahora: no se vuelve a mostrar.</p>`;
-    mensaje('Cliente creado. Ahora cargue sus credenciales por portal y habilite sus automatizaciones.');
+    mensaje(`Cliente creado con su identificador y su clave de API. Siguiente: <a href="/admin/nueva?c=${encodeURIComponent(r.slug)}&paso=portal">diseñar su automatización con el asistente</a>.`, 'exito fijo');
   } catch (err) { $('#n-error').hidden = false; $('#n-error').textContent = err.message; }
 };
 $('#btn-salir').onclick = async () => { await api('/logout', { method: 'POST' }).catch(() => {}); location.href = '/admin'; };

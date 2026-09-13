@@ -146,6 +146,9 @@ async function principal(): Promise<void> {
   await conectarDb();
   // Clave pública derivada de MASTER_KEY: con ella la consola cifra credenciales que solo el worker puede leer.
   await Configuracion.updateOne({ clave: 'clavePublica' }, { $set: { valor: clavePublicaWorker(), actualizadoPor: WORKER_ID } }, { upsert: true });
+  // Latido del worker: la consola sabe qué equipos están conectados y cuáles tienen ventana para grabar.
+  const latido = () => Configuracion.updateOne({ clave: `worker:${WORKER_ID}` }, { $set: { valor: { id: WORKER_ID, ventana: !HEADLESS, visto: new Date() }, actualizadoPor: WORKER_ID } }, { upsert: true }).catch(() => undefined);
+  await latido();
   let modulosSoportados = await nombresModulosSoportados();
   log(`Worker listo. Módulos en código: ${Object.keys(registro).join(', ')}. Flujos publicados: ${modulosSoportados.filter((m) => !registro[m]).join(', ') || 'ninguno'}. Headless: ${HEADLESS}`);
   let ultimoRescate = 0;
@@ -160,6 +163,7 @@ async function principal(): Promise<void> {
     if (Date.now() - ultimaLista > 30_000) {
       // Los flujos declarativos se publican desde la consola sin reiniciar el worker.
       modulosSoportados = await nombresModulosSoportados().catch(() => modulosSoportados);
+      await latido();
       ultimaLista = Date.now();
     }
     // Las grabaciones necesitan ventana visible: solo las toma un worker con HEADLESS=false.
@@ -182,6 +186,7 @@ async function principal(): Promise<void> {
     await dormir(pausa);
   }
   await cerrarTodo();
+  await Configuracion.deleteOne({ clave: `worker:${WORKER_ID}` }).catch(() => undefined);
   log('Worker detenido');
   process.exit(0);
 }

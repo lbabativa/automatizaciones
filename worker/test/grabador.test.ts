@@ -91,6 +91,18 @@ try {
   assert.equal(s.valor_opcion, undefined);
   console.log('ok  valores de prueba convertidos a parámetros');
 
+  // Credenciales del cliente → {{credenciales.campo}}; un campo de contraseña nunca queda en claro.
+  const usuario = normalizarPaso({ tipo: 'escribir', objetivo: { selector: '#u' }, valor: 'jperez' }, { num_doc: 'jperez' }, { usuario: 'jperez', password: 'S3creta!' });
+  assert.equal(usuario.valor, '{{credenciales.usuario}}', 'la credencial gana sobre un parámetro con el mismo valor');
+  const clave = normalizarPaso({ tipo: 'escribir', objetivo: { selector: '#p' }, valor: 'S3creta!', sensible: true }, {}, { usuario: 'jperez', password: 'S3creta!' });
+  assert.equal(clave.valor, '{{credenciales.password}}');
+  assert.equal(clave.sensible, undefined, 'la marca interna no llega al flujo');
+  const otra = normalizarPaso({ tipo: 'escribir', objetivo: { selector: '#p' }, valor: 'otra-clave', sensible: true }, {}, {});
+  assert.equal(otra.valor, '{{credenciales.password}}', 'sin credenciales guardadas, lo escrito en un campo de contraseña tampoco se guarda');
+  const vacio = normalizarPaso({ tipo: 'escribir', objetivo: { selector: '#q' }, valor: '' }, {}, { usuario: '' });
+  assert.equal(vacio.valor, '');
+  console.log('ok  credenciales grabadas como {{credenciales.*}}');
+
   console.log('\nTodas las pruebas del grabador pasaron.');
 } finally {
   await navegador.close();
