@@ -19,7 +19,12 @@ interface Estado {
   log(mensaje: string): void;
   /** Ruta de pasos para mensajes de error: "3 > si > 2". */
   ruta: string[];
+  /** Modo prueba: captura de pantalla después de cada paso que toca la página. */
+  capturarCadaPaso?: boolean;
 }
+
+/** Pasos que cambian o leen la página; los demás solo mueven datos. */
+const PASOS_VISUALES = new Set(['ir', 'clic', 'escribir', 'seleccionar', 'presionar', 'esperar', 'leer', 'leer_lista', 'leer_tabla', 'leer_lineas']);
 
 class FinDelFlujo extends Error {}
 
@@ -253,8 +258,21 @@ const CODIGO_LEER_ETIQUETA = `(label) => {
   return sig ? limpiar(sig.textContent) : null;
 }`;
 
-async function leerPorEtiqueta(page: Page, etiqueta: string): Promise<string | null> {
-  return page.evaluate(`(${CODIGO_LEER_ETIQUETA})(${JSON.stringify(etiqueta)})`) as Promise<string | null>;
+/** Sin `dentro` busca en toda la página; con `dentro` solo en ese elemento (por ejemplo el panel de la ficha). */
+async function leerPorEtiqueta(page: Page, etiqueta: string, dentro?: Locator): Promise<string | null> {
+  if (!dentro) return page.evaluate(`(${CODIGO_LEER_ETIQUETA})(${JSON.stringify(etiqueta)})`) as Promise<string | null>;
+  // Función sin constantes internas con nombre (ver CODIGO_LEER_ETIQUETA); recibe el elemento raíz.
+  return dentro.evaluate((raiz, label: string) => {
+    const nodos = Array.from(raiz.querySelectorAll('td, th, span, label, div, b, strong, dt, dd, p, li')) as HTMLElement[];
+    const nodo = nodos.find((n) => n.children.length === 0 && (n.textContent ?? '').replace(/\s+/g, ' ').trim().replace(/:$/, '').toLowerCase().startsWith(label.toLowerCase()));
+    if (!nodo) return null;
+    const propio = (nodo.textContent ?? '').replace(/\s+/g, ' ').trim();
+    const enLinea = propio.includes(':') ? propio.split(':').slice(1).join(':').replace(/\s+/g, ' ').trim() : '';
+    if (enLinea) return enLinea;
+    let sig: Element | null = nodo.nextElementSibling ?? (nodo.parentElement ? nodo.parentElement.nextElementSibling : null);
+    while (sig && !(sig.textContent ?? '').replace(/\s+/g, ' ').trim()) sig = sig.nextElementSibling;
+    return sig ? (sig.textContent ?? '').replace(/\s+/g, ' ').trim() : null;
+  }, etiqueta) as Promise<string | null>;
 }
 
 async function leerTabla(tabla: Locator, encabezados: boolean): Promise<Array<Record<string, unknown>>> {
@@ -370,7 +388,10 @@ async function ejecutarPaso(paso: Paso, est: Estado): Promise<void> {
     case 'leer': {
       let valor: string | null = null;
       if (paso.etiqueta) {
-        valor = await leerPorEtiqueta(page, s(paso.etiqueta));
+        // Con objetivo, la etiqueta se busca solo dentro de ese elemento.
+        const zona = paso.objetivo ? resolverObjetivo(page, paso.objetivo, vars) : undefined;
+        if (zona && !(await visible(zona, Math.min(timeout, 3_000)))) valor = null;
+        else valor = await leerPorEtiqueta(page, s(paso.etiqueta), zona);
       } else if (paso.objetivo) {
         const loc = resolverObjetivo(page, paso.objetivo, vars);
         if (await visible(loc, Math.min(timeout, 3_000))) {
@@ -547,6 +568,7 @@ export async function ejecutarPasos(pasos: Paso[], est: Estado): Promise<void> {
     est.log(`paso ${sub.ruta.join('.')} ${paso.tipo}${paso.titulo ? ` · ${paso.titulo}` : ''}`);
     try {
       await ejecutarPaso(paso, sub);
+      if (est.capturarCadaPaso && PASOS_VISUALES.has(paso.tipo)) await est.capturar(`paso-${sub.ruta.join('.')}-${paso.tipo}`);
     } catch (e) {
       if (e instanceof FinDelFlujo || e instanceof ErrorNegocio || e instanceof ErrorSesion || e instanceof ErrorPortal) throw e;
       const msg = (e as Error).message.split('\n')[0];
@@ -601,8 +623,13 @@ function variablesIniciales(ctx: Pick<ContextoEjecucion<Record<string, unknown>>
 
 const INTERNAS = new Set(['config', 'credenciales', 'hoy']);
 
+export interface OpcionesFlujo {
+  /** Captura después de cada paso visual (modo prueba desde el editor). */
+  capturarCadaPaso?: boolean;
+}
+
 /** Convierte una definición declarativa en un Modulo que API, worker y consola pueden usar. */
-export function moduloDesdeFlujo(def: FlujoDef, version = 0): Modulo {
+export function moduloDesdeFlujo(def: FlujoDef, version = 0, opciones: OpcionesFlujo = {}): Modulo {
   const parametros = esquemaParametros(def.parametros);
   const sinCaptura = async () => undefined;
   const silencio = () => undefined;
@@ -637,7 +664,7 @@ export function moduloDesdeFlujo(def: FlujoDef, version = 0): Modulo {
 
     async ejecutar(ctx: ContextoEjecucion<Record<string, unknown>>): Promise<unknown> {
       const vars = variablesIniciales(ctx);
-      const est: Estado = { page: ctx.page, vars, capturar: ctx.capturar, log: ctx.log, ruta: [] };
+      const est: Estado = { page: ctx.page, vars, capturar: ctx.capturar, log: ctx.log, ruta: [], capturarCadaPaso: opciones.capturarCadaPaso };
       try {
         await ejecutarPasos(def.pasos, est);
       } catch (e) {

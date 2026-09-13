@@ -42,13 +42,22 @@ export function listarModulos(): ResumenModulo[] {
   return lista.map((m) => resumir(m, 'codigo'));
 }
 
-/** Módulo en código o flujo declarativo publicado con ese nombre. */
-export async function resolverModulo(nombre: string): Promise<Modulo | undefined> {
+export interface OpcionesResolver {
+  /** Usar la definición en borrador (pruebas desde el editor) en vez de la publicada. */
+  borrador?: boolean;
+  /** Captura después de cada paso visual. */
+  capturarCadaPaso?: boolean;
+}
+
+/** Módulo en código o flujo declarativo con ese nombre (publicado, o su borrador si se pide). */
+export async function resolverModulo(nombre: string, opciones: OpcionesResolver = {}): Promise<Modulo | undefined> {
   const enCodigo = registro[nombre];
   if (enCodigo) return enCodigo;
-  const doc = await Flujo.findOne({ nombre, estado: 'publicado' }).lean<FlujoDoc>();
-  if (!doc?.definicion) return undefined;
-  return moduloDesdeFlujo(doc.definicion as FlujoDef, doc.version);
+  const doc = await Flujo.findOne({ nombre }).lean<FlujoDoc>();
+  if (!doc) return undefined;
+  const def = (opciones.borrador ? (doc.borrador ?? doc.definicion) : doc.estado === 'publicado' ? doc.definicion : null) as FlujoDef | null;
+  if (!def) return undefined;
+  return moduloDesdeFlujo(def, doc.version, { capturarCadaPaso: opciones.capturarCadaPaso });
 }
 
 /** Catálogo completo: módulos en código más flujos publicados. */
@@ -63,8 +72,8 @@ export async function listarModulosDisponibles(): Promise<ResumenModulo[]> {
   return [...listarModulos(), ...declarativos];
 }
 
-/** Nombres que un worker puede ejecutar: los de código más los flujos publicados. */
+/** Nombres que un worker puede ejecutar: los de código más todos los flujos (los borradores solo llegan como pruebas). */
 export async function nombresModulosSoportados(): Promise<string[]> {
-  const flujos = await Flujo.find({ estado: 'publicado' }).select('nombre').lean<Array<{ nombre: string }>>();
+  const flujos = await Flujo.find({}).select('nombre').lean<Array<{ nombre: string }>>();
   return [...new Set([...Object.keys(registro), ...flujos.map((f) => f.nombre)])];
 }

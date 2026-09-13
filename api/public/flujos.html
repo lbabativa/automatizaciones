@@ -1,0 +1,706 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flujos · Consola StartIA</title>
+<style>
+:root{
+  --ground:#f3f5f8; --paper:#fff; --paper-2:#eef1f6; --paper-3:#e4e9f0; --ink:#152238; --ink-2:#3e4c63;
+  --muted:#6b778c; --line:#dde2ea; --line-2:#c3cbd8; --accent:#0f7b86; --accent-ink:#0b5d66;
+  --accent-soft:#ddf0f2; --ok:#2e7d4f; --ok-soft:#e1f2e7; --warn:#a9641a; --warn-soft:#fbebd5;
+  --crit:#b23a3a; --crit-soft:#f7e0e0; --shadow:0 1px 2px rgba(21,34,56,.06),0 8px 24px -12px rgba(21,34,56,.18);
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace; --sans:"Segoe UI",system-ui,ui-sans-serif,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --ground:#0e1524; --paper:#161f31; --paper-2:#1d2839; --paper-3:#25324a; --ink:#e8edf5; --ink-2:#c0cadb;
+  --muted:#8a97ac; --line:#2a3649; --line-2:#3a475c; --accent:#4cc1ca; --accent-ink:#8fdde3;
+  --accent-soft:#12303a; --ok:#6ccb92; --ok-soft:#173225; --warn:#e3a45a; --warn-soft:#3a2a14;
+  --crit:#f08585; --crit-soft:#3a1c1c; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);
+}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:14.5px;line-height:1.45}
+a{color:var(--accent-ink)}
+[hidden]{display:none!important}
+button{font:inherit;font-weight:600;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:8px;padding:8px 14px;cursor:pointer;white-space:nowrap}
+button.sec{background:transparent;color:var(--accent-ink)}
+button.ghost{background:transparent;color:var(--muted);border-color:transparent;padding:4px 8px}
+button.ghost:hover{color:var(--ink);background:var(--paper-2)}
+button.peligro{background:transparent;color:var(--crit);border-color:var(--crit)}
+button.mini{padding:3px 8px;font-size:12px;border-radius:6px}
+button:disabled{opacity:.5;cursor:default}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-2);margin:10px 0 4px}
+label .op{font-weight:400;color:var(--muted)}
+select,input,textarea{width:100%;font:inherit;background:var(--paper);color:var(--ink);border:1px solid var(--line-2);border-radius:7px;padding:7px 10px}
+select:focus,input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+textarea{font-family:var(--mono);font-size:12.5px;min-height:60px;resize:vertical}
+input[type=checkbox]{width:auto;margin-right:6px;vertical-align:-1px}
+.ayuda{font-size:12px;color:var(--muted);margin:3px 0 0}
+.mono{font-family:var(--mono);font-size:12.5px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--paper-2);color:var(--ink-2);text-decoration:none}
+.chip.pub{background:var(--ok-soft);color:var(--ok)} .chip.bor{background:var(--warn-soft);color:var(--warn)}
+.error{background:var(--crit-soft);color:var(--crit);border-radius:8px;padding:10px 12px;font-size:13px;margin-top:10px;white-space:pre-wrap;font-family:var(--mono)}
+.aviso{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:10px 12px;font-size:13px;margin-top:10px}
+.exito{background:var(--ok-soft);color:var(--ok);border-radius:8px;padding:8px 12px;font-size:13px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+
+header{background:var(--paper);border-bottom:1px solid var(--line);padding:10px 20px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:5}
+.marca{display:flex;align-items:center;gap:10px}
+.marca .logo{width:32px;height:32px;border-radius:8px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800}
+.marca b{font-size:16px} .marca small{display:block;color:var(--muted);font-size:12px}
+header nav{display:flex;gap:4px;margin-left:10px}
+header .der{margin-left:auto;display:flex;gap:12px;align-items:center;font-size:13px;color:var(--muted)}
+
+.app{display:grid;grid-template-columns:260px 1fr;min-height:calc(100% - 54px)}
+aside{border-right:1px solid var(--line);background:var(--paper);padding:14px}
+aside h2{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 10px;display:flex;align-items:center}
+aside h2 button{margin-left:auto}
+.lista-flujos{display:flex;flex-direction:column;gap:4px}
+.item{padding:9px 10px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+.item:hover{background:var(--paper-2)} .item.sel{background:var(--accent-soft);border-color:var(--accent)}
+.item b{display:block;font-size:13.5px} .item small{color:var(--muted);font-size:12px}
+.item .chip{margin-top:4px}
+
+.editor{padding:18px 22px;max-width:1280px}
+.barra{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.barra h1{font-size:19px;margin:0;font-weight:700}
+.barra .acciones{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:14px;overflow-x:auto}
+.tabs button{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 12px}
+.tabs button.act{color:var(--ink);border-bottom-color:var(--accent)}
+.tabs button .n{font-size:11px;background:var(--paper-2);border-radius:999px;padding:1px 6px;margin-left:5px;color:var(--muted)}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow)}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start}
+@media(max-width:1100px){.grid2{grid-template-columns:1fr}}
+
+/* Pasos */
+.pasos{display:flex;flex-direction:column;gap:8px}
+.paso{border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.paso.anidado{background:var(--paper-2)}
+.paso > .cab{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:default}
+.paso > .cab .num{font-family:var(--mono);font-size:12px;color:var(--muted);min-width:34px}
+.paso > .cab select.tipo{width:auto;font-weight:700;padding:4px 8px;font-size:13px}
+.paso > .cab input.titulo{flex:1;padding:4px 8px;font-size:13px;background:transparent;border-color:transparent}
+.paso > .cab input.titulo:hover,.paso > .cab input.titulo:focus{border-color:var(--line-2);background:var(--paper)}
+.paso > .cab .btns{display:flex;gap:2px;opacity:.55} .paso > .cab:hover .btns{opacity:1}
+.paso > .cuerpo{padding:0 12px 12px 54px;border-top:1px dashed var(--line)}
+.paso.plegado > .cuerpo{display:none}
+.paso .resumen{font-size:12.5px;color:var(--muted);font-family:var(--mono);max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sub{border-left:3px solid var(--accent-soft);padding-left:12px;margin-top:8px}
+.sub > .subtit{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700;margin:8px 0 6px}
+.objetivo{display:grid;grid-template-columns:150px 1fr;gap:8px;align-items:center}
+.objetivo .mas{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.cond{display:grid;grid-template-columns:130px 1fr;gap:8px;align-items:start;padding:8px;border:1px dashed var(--line-2);border-radius:8px;background:var(--paper)}
+.cond .vc{display:grid;grid-template-columns:1fr 130px 1fr;gap:6px}
+.lista-cond{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.regla{display:grid;grid-template-columns:1fr 200px auto;gap:8px;align-items:start;margin-top:6px}
+.agregar-paso{display:flex;gap:6px;align-items:center;margin-top:8px}
+.agregar-paso select{width:auto}
+.vacio{color:var(--muted);font-size:13px;padding:24px;text-align:center}
+
+/* Parámetros */
+.param{display:grid;grid-template-columns:1fr 1.4fr 120px 90px auto;gap:8px;align-items:end;padding:8px 0;border-bottom:1px solid var(--line)}
+.param .todo{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+
+/* Prueba */
+.bitacora{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-height:260px;overflow:auto;font-family:var(--mono);font-size:12px;line-height:1.5}
+.bitacora div{white-space:pre-wrap}
+.bitacora .err{color:var(--crit)}
+.capturas{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.capturas a{display:block;border:1px solid var(--line);border-radius:6px;overflow:hidden;width:118px}
+.capturas img{display:block;width:100%;height:76px;object-fit:cover;object-position:top}
+.capturas small{display:block;font-size:10.5px;padding:2px 4px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--mono)}
+pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;padding:10px;overflow:auto;font-family:var(--mono);font-size:12px;max-height:300px;margin:8px 0 0}
+.pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;text-transform:uppercase}
+.pill.pendiente{background:var(--paper-2);color:var(--muted)} .pill.en_proceso{background:var(--warn-soft);color:var(--warn)}
+.pill.completado{background:var(--ok-soft);color:var(--ok)} .pill.fallido{background:var(--crit-soft);color:var(--crit)}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line-2);border-top-color:var(--accent);border-radius:50%;animation:g 1s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes g{to{transform:rotate(360deg)}}
+.modal-fondo{position:fixed;inset:0;background:rgba(10,20,40,.45);display:grid;place-items:center;z-index:20}
+.modal{background:var(--paper);border-radius:12px;padding:20px;width:min(520px,92vw);box-shadow:var(--shadow)}
+.modal h3{margin:0 0 6px}
+</style>
+</head>
+<body>
+<header>
+  <div class="marca"><div class="logo">S</div><div><b>Consola StartIA</b><small>Automatizaciones</small></div></div>
+  <nav><a class="chip" href="/admin">Consultas</a><a class="chip" style="background:var(--accent-soft);color:var(--accent-ink)">Flujos</a></nav>
+  <div class="der"><span id="usuario" class="mono"></span><button class="ghost" id="btn-salir">Salir</button></div>
+</header>
+
+<div class="app">
+  <aside>
+    <h2>Flujos <button class="mini sec" id="btn-nuevo">+ Nuevo</button></h2>
+    <div class="lista-flujos" id="lista"></div>
+    <p class="ayuda" style="margin-top:14px">Los módulos en código (<span id="en-codigo" class="mono"></span>) no se editan aquí.</p>
+  </aside>
+
+  <main class="editor">
+    <div id="sin-flujo" class="vacio">Elija un flujo a la izquierda o cree uno nuevo.</div>
+
+    <div id="ed" hidden>
+      <div class="barra">
+        <h1 id="ed-titulo"></h1>
+        <span id="ed-estado" class="chip"></span>
+        <span id="ed-sucio" class="chip bor" hidden>sin guardar</span>
+        <div class="acciones">
+          <button class="sec" id="btn-probar">▶ Probar</button>
+          <button id="btn-guardar">Guardar borrador</button>
+          <button class="sec" id="btn-publicar">Publicar</button>
+          <button class="ghost" id="btn-mas">···</button>
+        </div>
+      </div>
+      <div id="menu-mas" class="card" hidden style="position:absolute;right:24px;margin-top:-8px;padding:8px;display:flex;flex-direction:column;gap:4px;z-index:6">
+        <button class="ghost" id="btn-duplicar">Duplicar como flujo nuevo</button>
+        <button class="ghost" id="btn-descartar">Descartar borrador</button>
+        <button class="ghost" id="btn-eliminar" style="color:var(--crit)">Eliminar flujo</button>
+      </div>
+      <div id="ed-msg"></div>
+
+      <div class="grid2">
+        <div>
+          <div class="tabs">
+            <button data-tab="general" class="act">General</button>
+            <button data-tab="parametros">Parámetros <span class="n" id="n-params"></span></button>
+            <button data-tab="sesion">Sesión</button>
+            <button data-tab="pasos">Pasos <span class="n" id="n-pasos"></span></button>
+            <button data-tab="resultado">Resultado</button>
+            <button data-tab="clientes">Clientes</button>
+            <button data-tab="json">JSON</button>
+          </div>
+
+          <div class="card" id="tab-general">
+            <div class="row">
+              <div><label>Nombre (identificador)</label><input id="g-nombre" class="mono" disabled><p class="ayuda">Es la ruta de la API: <span class="mono">POST /v1/&lt;portal&gt;/&lt;nombre&gt;</span></p></div>
+              <div><label>Título</label><input id="g-titulo"></div>
+            </div>
+            <div class="row3">
+              <div><label>Portal</label><input id="g-portal" class="mono" placeholder="sanitas"><p class="ayuda">Agrupa credenciales y sesión.</p></div>
+              <div><label>Sector</label><input id="g-sector" placeholder="salud"></div>
+              <div><label>Credenciales requeridas</label><input id="g-cred" class="mono" placeholder="usuario, password"></div>
+            </div>
+            <label>URL de inicio</label><input id="g-url" class="mono" placeholder="https://…">
+            <label>Descripción</label><textarea id="g-desc" style="font-family:var(--sans);min-height:50px"></textarea>
+          </div>
+
+          <div class="card" id="tab-parametros" hidden>
+            <p class="ayuda">Campos que pide la consulta. Se usan en los pasos como <span class="mono">{{nombre}}</span>.</p>
+            <div id="params"></div>
+            <div class="agregar-paso"><button class="mini sec" id="btn-param">+ Parámetro</button></div>
+          </div>
+
+          <div class="card" id="tab-sesion" hidden>
+            <label>¿Cuándo hay sesión iniciada?</label>
+            <p class="ayuda">Condición que se cumple cuando la página ya muestra al usuario autenticado.</p>
+            <div id="ses-valida"></div>
+            <label style="margin-top:16px">Login automático <span class="op">(opcional; si falta o falla, alguien inicia sesión a mano una vez)</span></label>
+            <div id="ses-login"></div>
+          </div>
+
+          <div class="card" id="tab-pasos" hidden>
+            <div id="pasos-raiz"></div>
+          </div>
+
+          <div class="card" id="tab-resultado" hidden>
+            <p class="ayuda">Plantilla del resultado que devuelve la consulta. Si se deja vacía, se devuelven todas las variables leídas. Ejemplo: <span class="mono">{ "paciente": { "nombre": "{{ficha.nombre}}" }, "semaforo": "{{semaforo}}" }</span></p>
+            <textarea id="res-json" style="min-height:220px"></textarea>
+            <div id="res-msg"></div>
+          </div>
+
+          <div class="card" id="tab-clientes" hidden>
+            <p class="ayuda">Clientes que pueden ejecutar este flujo (desde la API con su clave y desde Consultas). La configuración por cliente, como el código de prestador, se edita en Consultas › Ajustes del cliente.</p>
+            <div id="clientes"></div>
+          </div>
+
+          <div class="card" id="tab-json" hidden>
+            <p class="ayuda">Definición completa. Puede editarla y aplicarla; también sirve para copiar o pegar flujos.</p>
+            <textarea id="def-json" style="min-height:420px"></textarea>
+            <div class="agregar-paso"><button class="sec" id="btn-aplicar-json">Aplicar JSON</button><button class="ghost" id="btn-copiar-json">Copiar</button><span id="json-msg" class="ayuda"></span></div>
+          </div>
+        </div>
+
+        <div class="card" id="panel-prueba">
+          <h2 style="font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 6px">Probar aquí</h2>
+          <p class="ayuda">Encola una prueba con la sesión real del cliente. El robot captura después de cada paso y aquí se ve la bitácora en vivo.</p>
+          <label>Cliente</label><select id="pr-cliente"></select>
+          <label>Versión a probar</label><select id="pr-origen"><option value="borrador">Borrador (lo que está en el editor, guardado)</option><option value="publicado">Publicada</option></select>
+          <div id="pr-params"></div>
+          <button id="btn-ejecutar-prueba" style="width:100%;margin-top:12px">Ejecutar prueba</button>
+          <div id="pr-salida" style="margin-top:12px"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="modal-nuevo" class="modal-fondo" hidden>
+  <form class="modal" id="form-nuevo">
+    <h3>Flujo nuevo</h3>
+    <p class="ayuda">Después podrá añadir parámetros y pasos. El nombre no se puede cambiar.</p>
+    <label>Nombre (minúsculas y guiones)</label><input id="n-nombre" class="mono" pattern="[a-z][a-z0-9-]*" required placeholder="bancolombia-extractos">
+    <label>Título</label><input id="n-titulo" required placeholder="Extractos Bancolombia">
+    <div class="row"><div><label>Portal</label><input id="n-portal" class="mono" pattern="[a-z][a-z0-9-]*" required placeholder="bancolombia"></div><div><label>Sector</label><input id="n-sector" required placeholder="banca"></div></div>
+    <label>URL de inicio</label><input id="n-url" type="url" required placeholder="https://…">
+    <div id="n-error" class="error" hidden></div>
+    <div class="agregar-paso" style="justify-content:flex-end;margin-top:14px"><button type="button" class="ghost" id="n-cancelar">Cancelar</button><button type="submit">Crear</button></div>
+  </form>
+</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const el = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+
+let FLUJOS = [], TIPOS = [], DEF = null, META = null, SUCIO = false, PRUEBA_TIMER = null, PRUEBA_ID = null;
+
+async function api(ruta, opciones = {}) {
+  const r = await fetch('/admin/api' + ruta, { ...opciones, credentials: 'same-origin', headers: { 'content-type': 'application/json', ...(opciones.headers || {}) } });
+  if (r.status === 401) { location.href = '/admin'; throw new Error('NO_AUTENTICADO'); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.mensaje || j.error || ('Error ' + r.status)); e.codigo = j.error; e.detalles = j.detalles; throw e; }
+  return j;
+}
+function marcarSucio() { SUCIO = true; $('#ed-sucio').hidden = false; }
+function mensaje(html, clase = 'exito') { $('#ed-msg').innerHTML = html ? `<div class="${clase}">${html}</div>` : ''; if (html && clase === 'exito') setTimeout(() => { if ($('#ed-msg').innerHTML.includes(html)) $('#ed-msg').innerHTML = ''; }, 4000); }
+
+// ---------------------------------------------------------------------------------
+// Lista y carga
+// ---------------------------------------------------------------------------------
+async function cargarLista(seleccionar) {
+  const { flujos, tiposPaso, modulosEnCodigo } = await api('/flujos');
+  FLUJOS = flujos; TIPOS = tiposPaso;
+  $('#en-codigo').textContent = modulosEnCodigo.join(', ');
+  $('#lista').innerHTML = flujos.map((f) => `<div class="item${DEF && DEF.nombre === f.nombre ? ' sel' : ''}" data-n="${esc(f.nombre)}"><b>${esc(f.titulo)}</b><small>${esc(f.portal)} · ${f.pasos} pasos</small><br><span class="chip ${f.estado === 'publicado' ? 'pub' : 'bor'}">${f.estado === 'publicado' ? 'v' + f.version : 'borrador'}</span>${f.tieneBorrador && f.estado === 'publicado' ? ' <span class="chip bor">cambios</span>' : ''}</div>`).join('') || '<p class="ayuda">Aún no hay flujos.</p>';
+  $('#lista').querySelectorAll('.item').forEach((it) => (it.onclick = () => abrir(it.dataset.n)));
+  if (seleccionar) abrir(seleccionar);
+}
+
+async function abrir(nombre) {
+  if (SUCIO && !confirm('Hay cambios sin guardar. ¿Descartarlos?')) return;
+  const f = await api('/flujos/' + nombre);
+  META = f;
+  DEF = f.borrador || f.definicion;
+  SUCIO = false;
+  $('#lista').querySelectorAll('.item').forEach((it) => it.classList.toggle('sel', it.dataset.n === nombre));
+  pintarEditor();
+}
+
+function pintarEditor() {
+  $('#sin-flujo').hidden = true; $('#ed').hidden = false; $('#ed-sucio').hidden = !SUCIO; mensaje('');
+  $('#ed-titulo').textContent = DEF.titulo || DEF.nombre;
+  const pub = META && META.estado === 'publicado';
+  $('#ed-estado').className = 'chip ' + (pub ? 'pub' : 'bor');
+  $('#ed-estado').textContent = pub ? `publicado v${META.version}` : 'borrador';
+  $('#g-nombre').value = DEF.nombre; $('#g-titulo').value = DEF.titulo || ''; $('#g-portal').value = DEF.portal || ''; $('#g-sector').value = DEF.sector || '';
+  $('#g-cred').value = (DEF.credenciales_requeridas || []).join(', '); $('#g-url').value = DEF.url_inicio || ''; $('#g-desc').value = DEF.descripcion || '';
+  pintarParametros(); pintarSesion(); pintarPasosRaiz(); pintarResultado(); pintarClientes(); pintarJson(); pintarPrueba();
+  $('#pr-salida').innerHTML = ''; clearInterval(PRUEBA_TIMER);
+}
+['g-titulo', 'g-portal', 'g-sector', 'g-cred', 'g-url', 'g-desc'].forEach((id) => ($('#' + id).oninput = () => {
+  DEF.titulo = $('#g-titulo').value; DEF.portal = $('#g-portal').value.trim(); DEF.sector = $('#g-sector').value.trim();
+  DEF.credenciales_requeridas = $('#g-cred').value.split(',').map((s) => s.trim()).filter(Boolean); DEF.url_inicio = $('#g-url').value.trim(); DEF.descripcion = $('#g-desc').value;
+  $('#ed-titulo').textContent = DEF.titulo || DEF.nombre; marcarSucio();
+}));
+
+document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('act', x === b));
+  ['general', 'parametros', 'sesion', 'pasos', 'resultado', 'clientes', 'json'].forEach((t) => ($('#tab-' + t).hidden = t !== b.dataset.tab));
+  if (b.dataset.tab === 'json') pintarJson();
+}));
+
+// ---------------------------------------------------------------------------------
+// Parámetros
+// ---------------------------------------------------------------------------------
+function pintarParametros() {
+  DEF.parametros = DEF.parametros || [];
+  $('#n-params').textContent = DEF.parametros.length;
+  const box = $('#params'); box.innerHTML = '';
+  DEF.parametros.forEach((p, i) => {
+    const fila = el(`<div class="param">
+      <div><label>Nombre</label><input class="mono" value="${esc(p.nombre)}" data-k="nombre" placeholder="num_doc"></div>
+      <div><label>Etiqueta</label><input value="${esc(p.etiqueta)}" data-k="etiqueta"></div>
+      <div><label>Tipo</label><select data-k="tipo">${['texto','numero','fecha','opcion','booleano'].map((t) => `<option${p.tipo === t ? ' selected' : ''}>${t}</option>`).join('')}</select></div>
+      <div><label>Requerido</label><input type="checkbox" data-k="requerido"${p.requerido ? ' checked' : ''}></div>
+      <div><button class="ghost mini" title="Subir">↑</button><button class="ghost mini" title="Bajar">↓</button><button class="ghost mini" title="Quitar" style="color:var(--crit)">✕</button></div>
+      <div class="todo">
+        <div><label>Ayuda</label><input value="${esc(p.ayuda || '')}" data-k="ayuda"></div>
+        <div><label>Ejemplo</label><input value="${esc(p.ejemplo || '')}" data-k="ejemplo"></div>
+        <div><label>Por defecto</label><input value="${esc(p.por_defecto ?? '')}" data-k="por_defecto"></div>
+        <div><label>Patrón (regex) <span class="op">solo texto</span></label><input class="mono" value="${esc(p.patron || '')}" data-k="patron"></div>
+        <div style="grid-column:span 2"><label>Opciones <span class="op">solo opción · valor=Etiqueta, separadas por coma</span></label><input value="${esc((p.opciones || []).map((o) => Array.isArray(o) ? o[0] + '=' + o[1] : o).join(', '))}" data-k="opciones"></div>
+      </div></div>`);
+    fila.querySelectorAll('[data-k]').forEach((inp) => (inp.oninput = () => {
+      const k = inp.dataset.k;
+      if (k === 'requerido') p.requerido = inp.checked;
+      else if (k === 'opciones') p.opciones = inp.value.split(',').map((s) => s.trim()).filter(Boolean).map((s) => (s.includes('=') ? [s.split('=')[0].trim(), s.split('=').slice(1).join('=').trim()] : s));
+      else if (k === 'por_defecto') { if (inp.value === '') delete p.por_defecto; else p.por_defecto = inp.value; }
+      else if (['ayuda', 'ejemplo', 'patron'].includes(k)) { if (inp.value === '') delete p[k]; else p[k] = inp.value; }
+      else p[k] = inp.value;
+      if (k === 'tipo' && p.tipo !== 'opcion') delete p.opciones;
+      if (k === 'tipo' && p.tipo !== 'texto') delete p.patron;
+      marcarSucio(); pintarPrueba();
+    }));
+    const [up, down, del] = fila.querySelectorAll('button');
+    up.onclick = () => { if (i > 0) { [DEF.parametros[i - 1], DEF.parametros[i]] = [DEF.parametros[i], DEF.parametros[i - 1]]; marcarSucio(); pintarParametros(); } };
+    down.onclick = () => { if (i < DEF.parametros.length - 1) { [DEF.parametros[i + 1], DEF.parametros[i]] = [DEF.parametros[i], DEF.parametros[i + 1]]; marcarSucio(); pintarParametros(); } };
+    del.onclick = () => { DEF.parametros.splice(i, 1); marcarSucio(); pintarParametros(); pintarPrueba(); };
+    box.appendChild(fila);
+  });
+  if (!DEF.parametros.length) box.innerHTML = '<p class="ayuda">Sin parámetros: la consulta no pide datos.</p>';
+}
+$('#btn-param').onclick = () => { DEF.parametros.push({ nombre: 'campo' + (DEF.parametros.length + 1), etiqueta: 'Campo', tipo: 'texto', requerido: true }); marcarSucio(); pintarParametros(); pintarPrueba(); };
+
+// ---------------------------------------------------------------------------------
+// Objetivos y condiciones (widgets reutilizables)
+// ---------------------------------------------------------------------------------
+const MODOS_OBJ = [['selector', 'Selector CSS'], ['texto', 'Texto visible'], ['rol', 'Rol accesible'], ['etiqueta', 'Etiqueta (label)'], ['placeholder', 'Placeholder']];
+function widgetObjetivo(obj, alCambiar, opcional) {
+  const modo = MODOS_OBJ.find(([m]) => obj && obj[m] !== undefined)?.[0] || 'selector';
+  const w = el(`<div class="objetivo">
+    <select class="modo">${opcional ? '<option value="">(sin objetivo)</option>' : ''}${MODOS_OBJ.map(([m, t]) => `<option value="${m}"${m === modo && obj ? ' selected' : ''}>${t}</option>`).join('')}</select>
+    <input class="principal mono" placeholder="${modo === 'selector' ? '#id, .clase, table…' : modo === 'texto' ? 'Texto o /regex/i' : ''}" value="${esc(obj ? obj[modo] ?? '' : '')}">
+    <div class="mas">
+      <input class="nombre" placeholder="Nombre accesible (rol)" value="${esc(obj?.nombre ?? '')}"${modo === 'rol' ? '' : ' hidden'}>
+      <input class="con_texto mono" placeholder="Que contenga el texto…" value="${esc(obj?.con_texto ?? '')}">
+      <input class="indice" type="number" min="0" placeholder="Índice (0 = primero)" value="${obj?.indice ?? ''}">
+      <label style="margin:0"><input type="checkbox" class="exacto"${obj?.exacto ? ' checked' : ''}> Texto exacto</label>
+      <input class="dentro mono" placeholder='Dentro de… (JSON de otro objetivo)' value="${esc(obj?.dentro_de ? JSON.stringify(obj.dentro_de) : '')}" style="grid-column:span 2">
+    </div></div>`);
+  if (opcional && !obj) w.querySelector('.modo').value = '';
+  const leer = () => {
+    const m = w.querySelector('.modo').value;
+    if (!m) return alCambiar(undefined);
+    const o = {};
+    o[m] = w.querySelector('.principal').value;
+    if (m === 'rol' && w.querySelector('.nombre').value) o.nombre = w.querySelector('.nombre').value;
+    if (w.querySelector('.con_texto').value) o.con_texto = w.querySelector('.con_texto').value;
+    if (w.querySelector('.indice').value !== '') o.indice = Number(w.querySelector('.indice').value);
+    if (w.querySelector('.exacto').checked) o.exacto = true;
+    const d = w.querySelector('.dentro').value.trim();
+    if (d) { try { o.dentro_de = JSON.parse(d); w.querySelector('.dentro').style.borderColor = ''; } catch { w.querySelector('.dentro').style.borderColor = 'var(--crit)'; } }
+    alCambiar(o);
+  };
+  w.querySelector('.modo').onchange = () => { w.querySelector('.nombre').hidden = w.querySelector('.modo').value !== 'rol'; leer(); };
+  w.querySelectorAll('input').forEach((i) => (i.oninput = leer));
+  return w;
+}
+
+const OPS = ['igual', 'distinto', 'contiene', 'coincide', 'vacio', 'no_vacio', 'mayor', 'menor', 'mayor_igual', 'menor_igual'];
+const TIPOS_COND = [['variable', 'Variable'], ['existe', 'Existe en la página'], ['no_existe', 'No existe en la página'], ['texto_visible', 'Texto visible'], ['url_coincide', 'URL coincide (regex)'], ['todas', 'Todas estas'], ['alguna', 'Alguna de estas'], ['no', 'No se cumple']];
+function tipoCond(c) { if (!c) return 'variable'; return TIPOS_COND.map(([t]) => t).find((t) => c[t] !== undefined) || 'variable'; }
+function widgetCondicion(cond, alCambiar) {
+  const tipo = tipoCond(cond);
+  const w = el(`<div class="cond"><select class="tc">${TIPOS_COND.map(([t, e]) => `<option value="${t}"${t === tipo ? ' selected' : ''}>${e}</option>`).join('')}</select><div class="cuerpo"></div></div>`);
+  const cuerpo = w.querySelector('.cuerpo');
+  const pintar = (t, c) => {
+    cuerpo.innerHTML = '';
+    if (t === 'variable') {
+      const v = el(`<div class="vc"><input class="mono var" placeholder="variable (ej. ficha.estado)" value="${esc(c?.variable ?? '')}"><select class="op">${OPS.map((o) => `<option${c?.op === o ? ' selected' : ''}>${o}</option>`).join('')}</select><input class="mono val" placeholder="valor o {{plantilla}}" value="${esc(c?.valor === undefined ? '' : typeof c.valor === 'string' ? c.valor : JSON.stringify(c.valor))}"></div>`);
+      const emitir = () => { const o = { variable: v.querySelector('.var').value, op: v.querySelector('.op').value }; const val = v.querySelector('.val').value; if (!['vacio', 'no_vacio'].includes(o.op) && val !== '') o.valor = valorDesdeTexto(val); alCambiar(o); };
+      v.querySelectorAll('input,select').forEach((i) => (i.oninput = emitir));
+      cuerpo.appendChild(v);
+    } else if (t === 'existe' || t === 'no_existe') {
+      cuerpo.appendChild(widgetObjetivo(c?.[t], (o) => alCambiar({ [t]: o || { selector: '' } })));
+    } else if (t === 'texto_visible' || t === 'url_coincide') {
+      const i = el(`<input class="mono" placeholder="${t === 'url_coincide' ? '/sso\\/login/i' : 'Texto o /regex/i'}" value="${esc(c?.[t] ?? '')}">`);
+      i.oninput = () => alCambiar({ [t]: i.value }); cuerpo.appendChild(i);
+    } else if (t === 'todas' || t === 'alguna') {
+      const lista = c?.[t] || [];
+      cuerpo.appendChild(widgetListaCondiciones(lista, (l) => alCambiar({ [t]: l })));
+    } else if (t === 'no') {
+      cuerpo.appendChild(widgetCondicion(c?.no, (x) => alCambiar({ no: x })));
+    }
+  };
+  pintar(tipo, cond);
+  w.querySelector('.tc').onchange = () => { const t = w.querySelector('.tc').value; const nuevo = t === 'variable' ? { variable: '', op: 'igual' } : t === 'todas' || t === 'alguna' ? { [t]: [] } : t === 'no' ? { no: { variable: '', op: 'vacio' } } : t === 'existe' || t === 'no_existe' ? { [t]: { selector: '' } } : { [t]: '' }; alCambiar(nuevo); pintar(t, nuevo); };
+  return w;
+}
+function widgetListaCondiciones(lista, alCambiar) {
+  const w = el('<div class="lista-cond"></div>');
+  const pintar = () => {
+    w.innerHTML = '';
+    lista.forEach((c, i) => {
+      const fila = el('<div style="display:flex;gap:6px;align-items:flex-start"></div>');
+      const wc = widgetCondicion(c, (x) => { lista[i] = x; alCambiar(lista); }); wc.style.flex = '1';
+      const del = el('<button class="ghost mini" style="color:var(--crit)">✕</button>'); del.onclick = () => { lista.splice(i, 1); alCambiar(lista); pintar(); };
+      fila.append(wc, del); w.appendChild(fila);
+    });
+    const add = el('<div><button class="mini sec">+ Condición</button></div>'); add.querySelector('button').onclick = () => { lista.push({ variable: '', op: 'igual' }); alCambiar(lista); pintar(); };
+    w.appendChild(add);
+  };
+  pintar();
+  return w;
+}
+function valorDesdeTexto(s) {
+  const t = s.trim();
+  if (t === '') return '';
+  if (/^(true|false|null|-?\d+(\.\d+)?)$/.test(t) || /^[\[{"]/.test(t)) { try { return JSON.parse(t); } catch { return s; } }
+  return s;
+}
+const textoDesdeValor = (v) => (v === undefined ? '' : typeof v === 'string' ? v : JSON.stringify(v, null, v && typeof v === 'object' ? 1 : 0));
+
+// ---------------------------------------------------------------------------------
+// Pasos
+// ---------------------------------------------------------------------------------
+const CAMPOS = {
+  ir: [{ n: 'url', etq: 'URL', ph: 'https://… o {{config.url}}' }],
+  clic: [{ n: 'objetivo', t: 'objetivo' }, { n: 'opcional', t: 'bool', etq: 'Opcional: si no aparece, se sigue sin error' }],
+  escribir: [{ n: 'objetivo', t: 'objetivo' }, { n: 'valor', etq: 'Valor', ph: '{{num_doc}}' }, { n: 'tecla', etq: 'Tecla al terminar', ph: 'Enter, Tab…' }],
+  seleccionar: [{ n: 'objetivo', t: 'objetivo', etq: 'Lista desplegable' }, { n: 'texto', etq: 'Opción por texto', ph: 'Todas' }, { n: 'valor', etq: '…o por valor', ph: '{{tipo_doc}}' }],
+  presionar: [{ n: 'tecla', etq: 'Tecla', ph: 'Enter' }, { n: 'objetivo', t: 'objetivo', opcional: true, etq: 'Sobre el elemento' }],
+  esperar: [{ n: 'objetivo', t: 'objetivo', opcional: true, etq: 'Hasta que aparezca el elemento' }, { n: 'texto', etq: '…o el texto', ph: 'Información usuario' }, { n: 'url', etq: '…o la URL (regex)' }, { n: 'ms', t: 'numero', etq: '…o un tiempo fijo (ms)' }, { n: 'habilitado', t: 'bool', etq: 'Y que esté habilitado' }, { n: 'opcional', t: 'bool', etq: 'Opcional: si no aparece, se sigue' }, { n: 'guardar_como', etq: 'Guardar si apareció en', ph: 'hay_tabla' }],
+  leer: [{ n: 'guardar_como', etq: 'Guardar en', ph: 'ficha.estado' }, { n: 'etiqueta', etq: 'Valor junto a la etiqueta', ph: 'Estado' }, { n: 'objetivo', t: 'objetivo', opcional: true, etq: 'Elemento: zona donde buscar la etiqueta, o el elemento a leer si no hay etiqueta' },{ n: 'atributo', etq: 'Atributo en vez del texto', ph: 'href' }, { n: 'extraer', etq: 'Extraer con regex (grupo 1)', ph: '/(\\d+)/' }, { n: 'como', t: 'select', ops: ['', 'texto', 'numero', 'fecha'], etq: 'Convertir a' }],
+  leer_lista: [{ n: 'guardar_como', etq: 'Guardar en' }, { n: 'objetivo', t: 'objetivo', etq: 'Elementos' }, { n: 'coincide', etq: 'Quedarse con los que cumplen (regex)' }, { n: 'unicos', t: 'bool', etq: 'Sin repetidos' }],
+  leer_tabla: [{ n: 'guardar_como', etq: 'Guardar en', ph: 'filas' }, { n: 'objetivo', t: 'objetivo', etq: 'Tabla' }, { n: 'encabezados', t: 'bool', etq: 'Usar la fila de encabezados como claves (si no, cada fila es { celdas: [...] })', def: true }],
+  leer_lineas: [{ n: 'guardar_como', etq: 'Guardar en', ph: 'lineas' }, { n: 'despues_de', etq: 'Desde la línea que coincide con (regex)' }],
+  capturar: [{ n: 'nombre', etq: 'Nombre de la captura', ph: '03-ficha' }],
+  asignar: [{ n: 'variable', etq: 'Variable', ph: 'total' }, { n: 'valor', t: 'valor', etq: 'Valor (texto, {{plantilla}} o JSON)' }],
+  agregar: [{ n: 'a', etq: 'A la lista', ph: 'observaciones' }, { n: 'valor', t: 'valor', etq: 'Valor' }],
+  buscar: [{ n: 'en', etq: 'En la lista', ph: '{{fila.celdas}}' }, { n: 'guardar_como', etq: 'Guardar en' }, { n: 'coincide', etq: 'Que cumpla (regex)', ph: '/^\\d{6}$/' }, { n: 'distinto_de', etq: 'Excluyendo' }, { n: 'todos', t: 'bool', etq: 'Todos los que cumplen (lista)' }, { n: 'desde_el_final', t: 'bool', etq: 'Buscar desde el final' }],
+  transformar: [{ n: 'variable', etq: 'Variable' }, { n: 'guardar_como', etq: 'Guardar en (si es otra)' }, { n: 'operaciones', t: 'json', etq: 'Operaciones (JSON)', ph: '[{"recortar":true},{"numero":true},{"reemplazar":["/_/g"," "]},{"por_defecto":"—"}]' }],
+  elegir: [{ n: 'de', etq: 'De la lista', ph: '{{autorizaciones}}' }, { n: 'guardar_como', etq: 'Guardar en' }, { n: 'como', etq: 'Nombre de cada elemento en las condiciones', ph: 'it' }, { n: 'preferir', t: 'condiciones', etq: 'Preferir, en orden' }, { n: 'ordenar_por', etq: 'Ordenar por campo' }, { n: 'desc', t: 'bool', etq: 'Descendente' }],
+  decidir: [{ n: 'guardar_como', etq: 'Guardar en', ph: 'semaforo' }, { n: 'reglas', t: 'reglas', etq: 'Reglas (la primera que se cumple gana)' }, { n: 'por_defecto', t: 'valor', etq: 'Si ninguna se cumple' }],
+  si: [{ n: 'condicion', t: 'condicion', etq: 'Condición' }, { n: 'entonces', t: 'pasos', etq: 'Entonces' }, { n: 'si_no', t: 'pasos', etq: 'Si no' }],
+  para_cada: [{ n: 'lista', etq: 'Lista', ph: '{{filas}}' }, { n: 'como', etq: 'Nombre de cada elemento', ph: 'it' }, { n: 'pasos', t: 'pasos', etq: 'Pasos por elemento' }],
+  error: [{ n: 'codigo', etq: 'Código', ph: 'PACIENTE_NO_ENCONTRADO' }, { n: 'mensaje', etq: 'Mensaje', ph: 'No se encontró {{num_doc}}' }, { n: 'clase', t: 'select', ops: ['negocio', 'portal', 'sesion'], etq: 'Clase (negocio no se reintenta; portal y sesión sí)' }],
+  fin: [],
+};
+const DESCR = { ir: 'Abrir URL', clic: 'Clic', escribir: 'Escribir', seleccionar: 'Seleccionar opción', presionar: 'Presionar tecla', esperar: 'Esperar', leer: 'Leer valor', leer_lista: 'Leer lista', leer_tabla: 'Leer tabla', leer_lineas: 'Leer líneas de texto', capturar: 'Captura de pantalla', asignar: 'Asignar variable', agregar: 'Agregar a lista', buscar: 'Buscar en lista', transformar: 'Transformar', elegir: 'Elegir de lista', decidir: 'Decidir', si: 'Si… entonces', para_cada: 'Para cada', error: 'Terminar con error', fin: 'Fin del flujo' };
+const descObj = (o) => (!o ? '' : o.selector ?? o.texto ?? (o.rol ? o.rol + ' ' + (o.nombre || '') : o.etiqueta ?? o.placeholder ?? ''));
+function resumenPaso(p) {
+  switch (p.tipo) {
+    case 'ir': return p.url; case 'clic': case 'presionar': return descObj(p.objetivo) || p.tecla; case 'escribir': return `${descObj(p.objetivo)} ← ${p.valor ?? ''}`;
+    case 'seleccionar': return `${descObj(p.objetivo)} = ${p.texto ?? p.valor ?? ''}`; case 'esperar': return descObj(p.objetivo) || p.texto || p.url || (p.ms ? p.ms + ' ms' : '');
+    case 'leer': return `${p.guardar_como} ← ${p.etiqueta ?? descObj(p.objetivo)}`; case 'leer_lista': case 'leer_tabla': return `${p.guardar_como} ← ${descObj(p.objetivo)}`;
+    case 'leer_lineas': case 'capturar': return p.guardar_como ?? p.nombre; case 'asignar': return `${p.variable} = ${textoDesdeValor(p.valor)}`; case 'agregar': return `${p.a} += ${textoDesdeValor(p.valor)}`;
+    case 'buscar': return `${p.guardar_como} ← ${p.en} ~ ${p.coincide ?? ''}`; case 'transformar': return p.variable; case 'elegir': return `${p.guardar_como} ← ${p.de}`; case 'decidir': return `${p.guardar_como} (${(p.reglas || []).length} reglas)`;
+    case 'si': return `${(p.entonces || []).length} / ${(p.si_no || []).length} pasos`; case 'para_cada': return `${p.lista} → ${(p.pasos || []).length} pasos`; case 'error': return `${p.codigo}: ${p.mensaje}`; default: return '';
+  }
+}
+function nuevoPaso(tipo) {
+  const p = { tipo };
+  (CAMPOS[tipo] || []).forEach((c) => { if (c.t === 'objetivo' && !c.opcional) p[c.n] = { selector: '' }; if (c.t === 'pasos' && c.n !== 'si_no') p[c.n] = []; if (c.t === 'condicion') p[c.n] = { variable: '', op: 'igual' }; if (c.t === 'reglas') p[c.n] = []; if (c.t === 'json') p[c.n] = []; if (c.def !== undefined) p[c.n] = c.def; });
+  if (tipo === 'ir') p.url = ''; if (tipo === 'error') { p.codigo = 'ERROR'; p.mensaje = ''; }
+  return p;
+}
+
+function pintarPasosRaiz() {
+  $('#n-pasos').textContent = contarPasos(DEF.pasos || []);
+  const raiz = $('#pasos-raiz'); raiz.innerHTML = ''; raiz.appendChild(widgetPasos(DEF.pasos = DEF.pasos || [], '', false));
+}
+const contarPasos = (l) => l.reduce((n, p) => n + 1 + contarPasos(p.entonces || []) + contarPasos(p.si_no || []) + contarPasos(p.pasos || []), 0);
+
+function widgetPasos(lista, prefijo, anidado) {
+  const w = el('<div class="pasos"></div>');
+  const pintar = () => {
+    w.innerHTML = '';
+    lista.forEach((p, i) => w.appendChild(tarjetaPaso(p, i, lista, prefijo, anidado, pintar)));
+    const add = el(`<div class="agregar-paso"><select><option value="">+ Añadir paso…</option>${TIPOS.map((t) => `<option value="${t}">${DESCR[t] || t}</option>`).join('')}</select><button class="mini ghost" title="Pegar JSON de un paso">Pegar JSON</button></div>`);
+    add.querySelector('select').onchange = (e) => { if (!e.target.value) return; lista.push(nuevoPaso(e.target.value)); marcarSucio(); pintar(); $('#n-pasos').textContent = contarPasos(DEF.pasos); w.lastElementChild.previousElementSibling.classList.remove('plegado'); };
+    add.querySelector('button').onclick = () => { const t = prompt('JSON del paso:'); if (!t) return; try { const p = JSON.parse(t); if (!p.tipo) throw new Error('sin tipo'); lista.push(p); marcarSucio(); pintar(); } catch (e) { alert('JSON inválido: ' + e.message); } };
+    w.appendChild(add);
+  };
+  pintar();
+  return w;
+}
+
+function tarjetaPaso(p, i, lista, prefijo, anidado, repintar) {
+  const num = prefijo + (i + 1);
+  const t = el(`<div class="paso plegado${anidado ? ' anidado' : ''}">
+    <div class="cab">
+      <span class="num">${num}</span>
+      <select class="tipo">${TIPOS.map((x) => `<option value="${x}"${x === p.tipo ? ' selected' : ''}>${DESCR[x] || x}</option>`).join('')}</select>
+      <input class="titulo" placeholder="Título (opcional)" value="${esc(p.titulo || '')}">
+      <span class="resumen">${esc(resumenPaso(p))}</span>
+      <span class="btns"><button class="ghost mini" title="Subir">↑</button><button class="ghost mini" title="Bajar">↓</button><button class="ghost mini" title="Duplicar">⧉</button><button class="ghost mini" title="Copiar JSON">{}</button><button class="ghost mini" title="Quitar" style="color:var(--crit)">✕</button></span>
+    </div>
+    <div class="cuerpo"></div></div>`);
+  const cab = t.querySelector('.cab'), cuerpo = t.querySelector('.cuerpo');
+  cab.onclick = (e) => { if (e.target.closest('select,input,button')) return; t.classList.toggle('plegado'); if (!t.classList.contains('plegado') && !cuerpo.childElementCount) pintarCuerpo(); };
+  const actualizarResumen = () => { t.querySelector('.resumen').textContent = resumenPaso(p); $('#n-pasos').textContent = contarPasos(DEF.pasos); };
+  t.querySelector('.tipo').onchange = (e) => { const nuevo = nuevoPaso(e.target.value); if (p.titulo) nuevo.titulo = p.titulo; lista[i] = nuevo; marcarSucio(); repintar(); };
+  t.querySelector('.titulo').oninput = (e) => { if (e.target.value) p.titulo = e.target.value; else delete p.titulo; marcarSucio(); };
+  const [up, down, dup, cp, del] = t.querySelectorAll('.btns button');
+  up.onclick = () => { if (i > 0) { [lista[i - 1], lista[i]] = [lista[i], lista[i - 1]]; marcarSucio(); repintar(); } };
+  down.onclick = () => { if (i < lista.length - 1) { [lista[i + 1], lista[i]] = [lista[i], lista[i + 1]]; marcarSucio(); repintar(); } };
+  dup.onclick = () => { lista.splice(i + 1, 0, JSON.parse(JSON.stringify(p))); marcarSucio(); repintar(); };
+  cp.onclick = () => { navigator.clipboard?.writeText(JSON.stringify(p, null, 2)); cp.textContent = '✓'; setTimeout(() => (cp.textContent = '{}'), 1200); };
+  del.onclick = () => { if (confirm(`¿Quitar el paso ${num} (${DESCR[p.tipo]})?`)) { lista.splice(i, 1); marcarSucio(); repintar(); } };
+
+  function pintarCuerpo() {
+    cuerpo.innerHTML = '';
+    const campos = CAMPOS[p.tipo] || [];
+    if (!campos.length) cuerpo.innerHTML = '<p class="ayuda">Este paso no tiene opciones.</p>';
+    for (const c of campos) {
+      const etq = c.etq || c.n;
+      const bloque = el(`<div><label>${esc(etq)}${c.opcional || (c.t !== 'objetivo' && c.t !== 'pasos' && c.t !== 'condicion' && !['guardar_como', 'url', 'variable', 'de', 'en', 'lista', 'codigo', 'mensaje', 'nombre', 'tecla', 'a'].includes(c.n)) ? ' <span class="op">(opcional)</span>' : ''}</label></div>`);
+      const set = (v) => { if (v === undefined || v === '' || v === false || (Array.isArray(v) && !v.length && c.t !== 'pasos' && c.t !== 'reglas' && c.t !== 'condiciones' && c.t !== 'json')) delete p[c.n]; else p[c.n] = v; marcarSucio(); actualizarResumen(); };
+      if (c.t === 'objetivo') bloque.appendChild(widgetObjetivo(p[c.n], set, c.opcional));
+      else if (c.t === 'bool') { const inp = el(`<label style="margin:0;font-weight:500"><input type="checkbox"${p[c.n] ?? c.def ? ' checked' : ''}> ${esc(etq)}</label>`); bloque.innerHTML = ''; inp.querySelector('input').onchange = (e) => { if (c.def === true) { p[c.n] = e.target.checked; marcarSucio(); } else set(e.target.checked); }; bloque.appendChild(inp); }
+      else if (c.t === 'numero') { const inp = el(`<input type="number" value="${p[c.n] ?? ''}">`); inp.oninput = () => set(inp.value === '' ? undefined : Number(inp.value)); bloque.appendChild(inp); }
+      else if (c.t === 'select') { const s = el(`<select>${c.ops.map((o) => `<option value="${o}"${(p[c.n] ?? '') === o ? ' selected' : ''}>${o || '(sin convertir)'}</option>`).join('')}</select>`); s.onchange = () => set(s.value || undefined); bloque.appendChild(s); }
+      else if (c.t === 'valor') { const ta = el(`<textarea placeholder="${esc(c.ph || '')}">${esc(textoDesdeValor(p[c.n]))}</textarea>`); ta.oninput = () => { p[c.n] = valorDesdeTexto(ta.value); marcarSucio(); actualizarResumen(); }; bloque.appendChild(ta); }
+      else if (c.t === 'json') { const ta = el(`<textarea placeholder="${esc(c.ph || '')}">${esc(p[c.n] === undefined ? '' : JSON.stringify(p[c.n]))}</textarea>`); ta.oninput = () => { try { p[c.n] = JSON.parse(ta.value || '[]'); ta.style.borderColor = ''; marcarSucio(); } catch { ta.style.borderColor = 'var(--crit)'; } }; bloque.appendChild(ta); }
+      else if (c.t === 'condicion') bloque.appendChild(widgetCondicion(p[c.n], (x) => { p[c.n] = x; marcarSucio(); }));
+      else if (c.t === 'condiciones') bloque.appendChild(widgetListaCondiciones(p[c.n] = p[c.n] || [], (l) => { p[c.n] = l; marcarSucio(); }));
+      else if (c.t === 'reglas') bloque.appendChild(widgetReglas(p[c.n] = p[c.n] || [], () => { marcarSucio(); actualizarResumen(); }));
+      else if (c.t === 'pasos') {
+        const sub = el(`<div class="sub"></div>`);
+        if (!p[c.n]) p[c.n] = [];
+        sub.appendChild(widgetPasos(p[c.n], num + '.', true));
+        bloque.appendChild(sub);
+      } else { const inp = el(`<input class="mono" placeholder="${esc(c.ph || '')}" value="${esc(p[c.n] ?? '')}">`); inp.oninput = () => set(inp.value); bloque.appendChild(inp); }
+      cuerpo.appendChild(bloque);
+    }
+    const tmo = el(`<div><label>Tiempo máximo del paso (ms) <span class="op">(opcional, 20000 por defecto)</span></label><input type="number" value="${p.timeout_ms ?? ''}"></div>`);
+    tmo.querySelector('input').oninput = (e) => { if (e.target.value === '') delete p.timeout_ms; else p.timeout_ms = Number(e.target.value); marcarSucio(); };
+    if (p.tipo !== 'fin') cuerpo.appendChild(tmo);
+  }
+  return t;
+}
+function widgetReglas(reglas, alCambiar) {
+  const w = el('<div></div>');
+  const pintar = () => {
+    w.innerHTML = '';
+    reglas.forEach((r, i) => {
+      const fila = el('<div class="regla"></div>');
+      fila.appendChild(widgetCondicion(r.cuando, (x) => { r.cuando = x; alCambiar(); }));
+      const val = el(`<div><textarea placeholder="valor" style="min-height:36px">${esc(textoDesdeValor(r.valor))}</textarea></div>`); val.querySelector('textarea').oninput = (e) => { r.valor = valorDesdeTexto(e.target.value); alCambiar(); };
+      const del = el('<button class="ghost mini" style="color:var(--crit)">✕</button>'); del.onclick = () => { reglas.splice(i, 1); alCambiar(); pintar(); };
+      fila.append(val, del); w.appendChild(fila);
+    });
+    const add = el('<div class="agregar-paso"><button class="mini sec">+ Regla</button></div>'); add.querySelector('button').onclick = () => { reglas.push({ cuando: { variable: '', op: 'igual' }, valor: '' }); alCambiar(); pintar(); };
+    w.appendChild(add);
+  };
+  pintar();
+  return w;
+}
+
+// ---------------------------------------------------------------------------------
+// Sesión, resultado, clientes, JSON
+// ---------------------------------------------------------------------------------
+function pintarSesion() {
+  DEF.sesion = DEF.sesion || { valida_si: { texto_visible: 'Salir' } };
+  const v = $('#ses-valida'); v.innerHTML = ''; v.appendChild(widgetCondicion(DEF.sesion.valida_si, (x) => { DEF.sesion.valida_si = x; marcarSucio(); }));
+  const l = $('#ses-login'); l.innerHTML = '';
+  if (!DEF.sesion.login) {
+    const b = el('<button class="mini sec">+ Definir pasos de login</button>'); b.onclick = () => { DEF.sesion.login = [{ tipo: 'escribir', objetivo: { selector: '#username' }, valor: '{{credenciales.usuario}}' }, { tipo: 'escribir', objetivo: { selector: '#password' }, valor: '{{credenciales.password}}', tecla: 'Enter' }]; marcarSucio(); pintarSesion(); };
+    l.appendChild(b);
+  } else {
+    l.appendChild(widgetPasos(DEF.sesion.login, 'L', true));
+    const q = el('<button class="ghost mini" style="margin-top:6px;color:var(--crit)">Quitar login automático</button>'); q.onclick = () => { delete DEF.sesion.login; marcarSucio(); pintarSesion(); }; l.appendChild(q);
+  }
+}
+function pintarResultado() { $('#res-json').value = DEF.resultado ? JSON.stringify(DEF.resultado, null, 2) : ''; $('#res-msg').innerHTML = ''; }
+$('#res-json').oninput = () => { const t = $('#res-json').value.trim(); if (!t) { delete DEF.resultado; $('#res-msg').innerHTML = ''; marcarSucio(); return; } try { DEF.resultado = JSON.parse(t); $('#res-msg').innerHTML = ''; marcarSucio(); } catch (e) { $('#res-msg').innerHTML = `<div class="error">${esc(e.message)}</div>`; } };
+function pintarClientes() {
+  const box = $('#clientes');
+  if (!META || !META.clientes || !META.clientes.length) { box.innerHTML = '<p class="ayuda">Guarde el flujo para poder habilitarlo a clientes.</p>'; return; }
+  box.innerHTML = META.clientes.map((cl) => `<label style="font-weight:500;margin:6px 0"><input type="checkbox" data-slug="${esc(cl.slug)}"${cl.habilitado ? ' checked' : ''}> ${esc(cl.nombre)} <span class="mono" style="color:var(--muted)">${esc(cl.slug)}</span></label>`).join('');
+  box.querySelectorAll('input').forEach((i) => (i.onchange = async () => { try { await api(`/clientes/${i.dataset.slug}/modulos/${DEF.nombre}`, { method: 'PUT', body: JSON.stringify({ activo: i.checked }) }); mensaje(i.checked ? 'Habilitado.' : 'Deshabilitado.'); const cl = META.clientes.find((c) => c.slug === i.dataset.slug); if (cl) cl.habilitado = i.checked; pintarPrueba(); } catch (e) { mensaje(esc(e.message), 'error'); i.checked = !i.checked; } }));
+}
+function pintarJson() { $('#def-json').value = JSON.stringify(DEF, null, 2); $('#json-msg').textContent = ''; }
+$('#btn-aplicar-json').onclick = () => { try { const d = JSON.parse($('#def-json').value); if (d.nombre !== DEF.nombre) throw new Error('El nombre no se puede cambiar aquí'); DEF = d; marcarSucio(); pintarEditor(); $('#json-msg').textContent = 'Aplicado.'; } catch (e) { $('#json-msg').textContent = 'JSON inválido: ' + e.message; } };
+$('#btn-copiar-json').onclick = () => { navigator.clipboard?.writeText($('#def-json').value); $('#json-msg').textContent = 'Copiado.'; };
+
+// ---------------------------------------------------------------------------------
+// Guardar, publicar, descartar, eliminar, nuevo, duplicar
+// ---------------------------------------------------------------------------------
+async function guardar() {
+  try {
+    const r = await api('/flujos/' + DEF.nombre, { method: 'PUT', body: JSON.stringify(DEF) });
+    SUCIO = false; $('#ed-sucio').hidden = true; mensaje('Borrador guardado.');
+    const f = await api('/flujos/' + DEF.nombre); META = f; pintarClientes(); pintarPrueba();
+    await cargarLista();
+    return true;
+  } catch (e) { mensaje(esc(e.message), 'error'); return false; }
+}
+$('#btn-guardar').onclick = guardar;
+$('#btn-publicar').onclick = async () => {
+  if (SUCIO && !(await guardar())) return;
+  if (!confirm(`¿Publicar "${DEF.titulo}"? Las consultas nuevas usarán esta versión.`)) return;
+  try { const r = await api('/flujos/' + DEF.nombre + '/publicar', { method: 'POST' }); mensaje(`Publicado como versión ${r.version}.`); await cargarLista(); const f = await api('/flujos/' + DEF.nombre); META = f; pintarEditor(); } catch (e) { mensaje(esc(e.message), 'error'); }
+};
+$('#btn-mas').onclick = () => ($('#menu-mas').hidden = !$('#menu-mas').hidden);
+document.addEventListener('click', (e) => { if (!e.target.closest('#btn-mas,#menu-mas')) $('#menu-mas').hidden = true; });
+$('#btn-descartar').onclick = async () => { if (!confirm('¿Descartar los cambios del borrador?')) return; try { const r = await api('/flujos/' + DEF.nombre + '/descartar', { method: 'POST' }); SUCIO = false; await cargarLista(); if (r.eliminado) { DEF = null; $('#ed').hidden = true; $('#sin-flujo').hidden = false; } else abrir(DEF.nombre); } catch (e) { mensaje(esc(e.message), 'error'); } };
+$('#btn-eliminar').onclick = async () => { if (!confirm(`¿Eliminar el flujo "${DEF.nombre}" por completo?`)) return; try { await api('/flujos/' + DEF.nombre, { method: 'DELETE' }); SUCIO = false; DEF = null; $('#ed').hidden = true; $('#sin-flujo').hidden = false; await cargarLista(); } catch (e) { mensaje(esc(e.message), 'error'); } };
+$('#btn-duplicar').onclick = () => { const n = prompt('Nombre del flujo nuevo (minúsculas y guiones):', DEF.nombre + '-copia'); if (!n) return; if (!/^[a-z][a-z0-9-]*$/.test(n)) return alert('Nombre inválido'); DEF = { ...JSON.parse(JSON.stringify(DEF)), nombre: n, titulo: DEF.titulo + ' (copia)' }; META = null; SUCIO = true; pintarEditor(); mensaje('Copia creada en memoria. Guarde el borrador para conservarla.', 'aviso'); };
+$('#btn-nuevo').onclick = () => { $('#modal-nuevo').hidden = false; $('#n-error').hidden = true; $('#n-nombre').focus(); };
+$('#n-cancelar').onclick = () => ($('#modal-nuevo').hidden = true);
+$('#form-nuevo').onsubmit = (e) => {
+  e.preventDefault();
+  const nombre = $('#n-nombre').value.trim();
+  if (FLUJOS.some((f) => f.nombre === nombre)) { $('#n-error').hidden = false; $('#n-error').textContent = 'Ya existe un flujo con ese nombre.'; return; }
+  if (SUCIO && !confirm('Hay cambios sin guardar. ¿Descartarlos?')) return;
+  DEF = { nombre, titulo: $('#n-titulo').value.trim(), portal: $('#n-portal').value.trim(), sector: $('#n-sector').value.trim(), descripcion: '', url_inicio: $('#n-url').value.trim(), credenciales_requeridas: ['usuario', 'password'], parametros: [], sesion: { valida_si: { texto_visible: 'Salir' } }, pasos: [{ tipo: 'capturar', nombre: '01-inicio' }] };
+  META = null; SUCIO = true; $('#modal-nuevo').hidden = true; $('#form-nuevo').reset(); pintarEditor(); mensaje('Flujo creado en memoria. Guarde el borrador para conservarlo.', 'aviso');
+};
+
+// ---------------------------------------------------------------------------------
+// Probar aquí
+// ---------------------------------------------------------------------------------
+function pintarPrueba() {
+  const sel = $('#pr-cliente');
+  const clientes = (META && META.clientes) || [];
+  sel.innerHTML = clientes.map((c) => `<option value="${esc(c.slug)}">${esc(c.nombre)}${c.habilitado ? '' : ' (no habilitado)'}</option>`).join('') || '<option value="">(guarde el flujo primero)</option>';
+  $('#pr-params').innerHTML = (DEF.parametros || []).map((p) => {
+    const req = p.requerido ? '' : ' <span class="op">(opcional)</span>';
+    if (p.tipo === 'opcion') return `<label>${esc(p.etiqueta)}${req}</label><select data-p="${esc(p.nombre)}">${(p.opciones || []).map((o) => { const [v, t] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}"${v === p.por_defecto ? ' selected' : ''}>${esc(t)}</option>`; }).join('')}</select>`;
+    if (p.tipo === 'booleano') return `<label>${esc(p.etiqueta)}${req}</label><select data-p="${esc(p.nombre)}"><option value="">—</option><option value="true">Sí</option><option value="false">No</option></select>`;
+    return `<label>${esc(p.etiqueta)}${req}</label><input data-p="${esc(p.nombre)}" type="${p.tipo === 'fecha' ? 'date' : p.tipo === 'numero' ? 'number' : 'text'}" placeholder="${esc(p.ejemplo || '')}" value="${esc(p.por_defecto ?? '')}">`;
+  }).join('');
+  $('#btn-ejecutar-prueba').disabled = !clientes.length;
+}
+$('#btn-ejecutar-prueba').onclick = async () => {
+  if (SUCIO && $('#pr-origen').value === 'borrador') { if (!confirm('El borrador tiene cambios sin guardar. ¿Guardar y probar?')) return; if (!(await guardar())) return; }
+  const parametros = {};
+  $('#pr-params').querySelectorAll('[data-p]').forEach((i) => { if (i.value !== '') parametros[i.dataset.p] = i.value; });
+  const btn = $('#btn-ejecutar-prueba'); btn.disabled = true;
+  $('#pr-salida').innerHTML = '<p class="ayuda"><span class="spinner"></span>Enviando…</p>';
+  try {
+    const t = await api('/flujos/' + DEF.nombre + '/probar', { method: 'POST', body: JSON.stringify({ cliente: $('#pr-cliente').value, parametros, origen: $('#pr-origen').value }) });
+    PRUEBA_ID = t.id; pintarPruebaEstado(t); seguirPrueba(t.id);
+  } catch (e) {
+    $('#pr-salida').innerHTML = `<div class="error">${esc(e.codigo === 'PARAMETROS_INVALIDOS' ? 'Revise los datos: ' + (e.detalles || []).map((d) => `${d.path.join('.')}: ${d.message}`).join('; ') : e.message)}</div>`;
+    btn.disabled = false;
+  }
+};
+function seguirPrueba(id) {
+  clearInterval(PRUEBA_TIMER);
+  PRUEBA_TIMER = setInterval(async () => {
+    if (PRUEBA_ID !== id) return clearInterval(PRUEBA_TIMER);
+    const t = await api('/trabajos/' + id).catch(() => null);
+    if (!t) return;
+    pintarPruebaEstado(t);
+    if (t.estado === 'completado' || t.estado === 'fallido') { clearInterval(PRUEBA_TIMER); $('#btn-ejecutar-prueba').disabled = false; }
+  }, 2000);
+}
+function pintarPruebaEstado(t) {
+  const bit = (t.bitacora || []).map((a) => `<div class="${/fall|error|inválid/i.test(a.mensaje) ? 'err' : ''}">${esc(new Date(a.t).toLocaleTimeString('es-CO', { hour12: false }))} ${esc(a.mensaje)}</div>`).join('');
+  const nombreCaptura = (u) => { try { const q = new URL(u, location.origin).searchParams.get('ruta'); const base = (q || u.split('?')[0]).split(/[\\/]/).pop(); return decodeURIComponent(base).replace(/\.png$/, ''); } catch { return 'captura'; } };
+  const caps = (t.capturas || []).map((u) => { const n = nombreCaptura(u); return `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt=""><small title="${esc(n)}">${esc(n)}</small></a>`; }).join('');
+  const activo = t.estado === 'pendiente' || t.estado === 'en_proceso';
+  $('#pr-salida').innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center">${activo ? '<span class="spinner"></span>' : ''}<span class="pill ${t.estado}">${t.estado.replace('_', ' ')}</span><span class="ayuda mono">${esc(t.id)}</span>${t.duracion_ms ? `<span class="ayuda">${(t.duracion_ms / 1000).toFixed(0)} s</span>` : ''}</div>
+    ${t.estado === 'fallido' ? `<div class="error">${esc(t.error)}: ${esc(t.error_mensaje || '')}</div>` : ''}
+    <label>Bitácora</label><div class="bitacora" id="bit">${bit || '<div class="ayuda">Esperando al robot… (debe estar corriendo en el PC de la clínica)</div>'}</div>
+    ${caps ? `<label>Capturas por paso</label><div class="capturas">${caps}</div>` : ''}
+    ${t.estado === 'completado' ? `<label>Resultado</label><pre>${esc(JSON.stringify(t.resultado, null, 2))}</pre>` : ''}`;
+  const b = $('#bit'); if (b) b.scrollTop = b.scrollHeight;
+}
+
+// ---------------------------------------------------------------------------------
+// Arranque
+// ---------------------------------------------------------------------------------
+$('#btn-salir').onclick = async () => { await api('/logout', { method: 'POST' }).catch(() => {}); location.href = '/admin'; };
+window.onbeforeunload = () => (SUCIO ? true : undefined);
+(async () => {
+  try { const { usuario } = await api('/yo'); $('#usuario').textContent = usuario; await cargarLista(new URLSearchParams(location.search).get('f')); }
+  catch { /* api() ya redirige al login */ }
+})();
+</script>
+</body>
+</html>

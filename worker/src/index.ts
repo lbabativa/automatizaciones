@@ -6,6 +6,8 @@
  * cuenta del mismo portal, que es lo que los portales de las EPS bloquean.
  */
 import {
+  agregarCaptura,
+  anotar,
   Cliente,
   completar,
   conectarDb,
@@ -41,7 +43,8 @@ const log = (msg: string) => console.log(`[${new Date().toISOString()}] [${WORKE
 async function procesar(trabajo: TrabajoDoc): Promise<void> {
   const capturas: string[] = [];
   const id = String(trabajo._id);
-  const modulo = await resolverModulo(trabajo.modulo);
+  const prueba = trabajo.prueba ?? null;
+  const modulo = await resolverModulo(trabajo.modulo, prueba ? { borrador: prueba.origen === 'borrador', capturarCadaPaso: prueba.capturarCadaPaso } : {});
   if (!modulo) {
     await fallar(trabajo._id, { codigo: 'MODULO_INEXISTENTE', mensaje: `El worker no tiene el módulo ${trabajo.modulo}` }, [], false);
     return;
@@ -63,19 +66,29 @@ async function procesar(trabajo: TrabajoDoc): Promise<void> {
 
   const contexto = await obtenerContexto(cliente.slug, modulo.portal, HEADLESS);
   const page = await contexto.newPage();
+  // Las escrituras a la bitácora y a las capturas se encadenan para que lleguen a Mongo en orden.
+  let escrituras: Promise<unknown> = Promise.resolve();
+  const enOrden = (f: () => Promise<unknown>) => (escrituras = escrituras.then(f, f));
   const capturar = async (nombre: string) => {
     try {
-      capturas.push(await capturarEvidencia(page, cliente.slug, id, nombre));
+      const url = await capturarEvidencia(page, cliente.slug, id, nombre);
+      capturas.push(url);
+      enOrden(() => agregarCaptura(trabajo._id, url));
     } catch (e) {
       log(`No se pudo guardar la captura ${nombre}: ${(e as Error).message}`);
     }
   };
+  // Cada mensaje del módulo queda en la bitácora del trabajo, visible en la consola mientras corre.
+  const logTrabajo = (mensaje: string) => {
+    log(`[${id.slice(-6)}] ${mensaje}`);
+    enOrden(() => anotar(trabajo._id, mensaje));
+  };
 
   try {
     await page.goto(modulo.urlInicio, { waitUntil: 'networkidle' });
-    await asegurarSesion(modulo, contexto, page, credenciales, { headless: HEADLESS, log, clienteSlug: cliente.slug });
+    await asegurarSesion(modulo, contexto, page, credenciales, { headless: HEADLESS, log: logTrabajo, clienteSlug: cliente.slug });
 
-    const resultado = await modulo.ejecutar({ parametros: trabajo.parametros, credenciales, config: configModulo, page, capturar, log });
+    const resultado = await modulo.ejecutar({ parametros: trabajo.parametros, credenciales, config: configModulo, page, capturar, log: logTrabajo });
     await guardarSesion(cliente.slug, modulo.portal, contexto, 'automatica');
     await completar(trabajo._id, resultado, capturas);
     log(`Trabajo ${id} completado (${modulo.nombre}, ${cliente.slug})`);

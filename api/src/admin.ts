@@ -12,8 +12,25 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Cliente, encolar, env, esperarResultado, rutaProyecto, Sesion, Trabajo, verificarPassword, type ClienteDoc, type TrabajoDoc } from '@startia/core';
-import { listarModulosDisponibles, resolverModulo } from '@startia/modulos';
+import {
+  Cliente,
+  encolar,
+  env,
+  esperarResultado,
+  esquemaParametros,
+  Flujo,
+  FlujoDefSchema,
+  rutaProyecto,
+  Sesion,
+  Trabajo,
+  verificarPassword,
+  type ClienteDoc,
+  type FlujoDef,
+  type FlujoDoc,
+  type TrabajoDoc,
+} from '@startia/core';
+import { listarModulosDisponibles, registro, resolverModulo } from '@startia/modulos';
+import { z } from 'zod';
 import { Hono, type Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import mongoose from 'mongoose';
@@ -74,11 +91,11 @@ function esHttps(c: Context): boolean {
 
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// El HTML del panel es público (no expone datos); las rutas de datos exigen la clave.
+// El HTML de las páginas es público (no expone datos); las rutas de datos exigen sesión.
 // Se busca junto al código (serverless) y desde la raíz del proyecto (local).
-async function leerPanel(): Promise<string | null> {
+async function leerPagina(archivo: string): Promise<string | null> {
   const aquí = fileURLToPath(new URL('.', import.meta.url));
-  const candidatos = [resolve(aquí, '..', 'public', 'panel.html'), resolve(aquí, 'public', 'panel.html'), rutaProyecto('api', 'public', 'panel.html')];
+  const candidatos = [resolve(aquí, '..', 'public', archivo), resolve(aquí, 'public', archivo), rutaProyecto('api', 'public', archivo)];
   for (const ruta of candidatos) {
     try {
       return await readFile(ruta, 'utf8');
@@ -89,8 +106,12 @@ async function leerPanel(): Promise<string | null> {
   return null;
 }
 admin.get('/', async (c) => {
-  const html = await leerPanel();
+  const html = await leerPagina('panel.html');
   return html ? c.html(html) : c.text('No se encontró api/public/panel.html', 500);
+});
+admin.get('/flujos', async (c) => {
+  const html = await leerPagina('flujos.html');
+  return html ? c.html(html) : c.text('No se encontró api/public/flujos.html', 500);
 });
 
 // Inicio de sesión del operador. Responde igual de lento si falla, para no dar pistas.
@@ -229,6 +250,163 @@ admin.post('/api/ejecutar', async (c) => {
   return c.json(detalle(trabajo), 202);
 });
 
+// ---------------------------------------------------------------------------------
+// Flujos declarativos: editor de la consola
+// ---------------------------------------------------------------------------------
+
+function resumenFlujo(f: FlujoDoc) {
+  const def = (f.borrador ?? f.definicion) as FlujoDef | null;
+  return {
+    nombre: f.nombre,
+    titulo: def?.titulo ?? f.nombre,
+    portal: def?.portal ?? null,
+    sector: def?.sector ?? null,
+    estado: f.estado,
+    version: f.version,
+    pasos: def?.pasos.length ?? 0,
+    tieneBorrador: Boolean(f.borrador),
+    publicadoEn: f.publicadoEn ?? null,
+    actualizado: f.updatedAt,
+  };
+}
+
+admin.get('/api/flujos', async (c) => {
+  const flujos = await Flujo.find().sort({ nombre: 1 }).lean<FlujoDoc[]>();
+  const clientes = await Cliente.find().select('slug nombre modulos').lean<ClienteDoc[]>();
+  const habilitadoEn = (nombre: string) => clientes.filter((cl) => cl.modulos.some((m) => m.nombre === nombre && m.activo)).map((cl) => cl.slug);
+  return c.json({
+    flujos: flujos.map((f) => ({ ...resumenFlujo(f), clientes: habilitadoEn(f.nombre) })),
+    tiposPaso: ['ir', 'clic', 'escribir', 'seleccionar', 'presionar', 'esperar', 'leer', 'leer_lista', 'leer_tabla', 'leer_lineas', 'capturar', 'asignar', 'agregar', 'buscar', 'transformar', 'elegir', 'decidir', 'si', 'para_cada', 'error', 'fin'],
+    modulosEnCodigo: Object.keys(registro),
+  });
+});
+
+admin.get('/api/flujos/:nombre', async (c) => {
+  const f = await Flujo.findOne({ nombre: c.req.param('nombre') }).lean<FlujoDoc>();
+  if (!f) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  const clientes = await Cliente.find().select('slug nombre modulos').lean<ClienteDoc[]>();
+  return c.json({
+    ...resumenFlujo(f),
+    definicion: f.definicion ?? null,
+    borrador: f.borrador ?? null,
+    clientes: clientes.map((cl) => ({ slug: cl.slug, nombre: cl.nombre, habilitado: cl.modulos.some((m) => m.nombre === f.nombre && m.activo) })),
+  });
+});
+
+/** Guarda el borrador. Valida la definición y devuelve los errores legibles si no cumple el esquema. */
+admin.put('/api/flujos/:nombre', async (c) => {
+  const nombre = c.req.param('nombre');
+  let cuerpo: unknown;
+  try {
+    cuerpo = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON_INVALIDO' }, 400);
+  }
+  const val = FlujoDefSchema.safeParse(cuerpo);
+  if (!val.success) return c.json({ error: 'FLUJO_INVALIDO', mensaje: z.prettifyError(val.error), detalles: val.error.issues }, 400);
+  if (val.data.nombre !== nombre) return c.json({ error: 'NOMBRE_DISTINTO', mensaje: 'El nombre del flujo no coincide con la URL' }, 400);
+  if (registro[nombre]) return c.json({ error: 'NOMBRE_RESERVADO', mensaje: `Ya existe un módulo en código llamado ${nombre}` }, 409);
+  await Flujo.updateOne({ nombre }, { $set: { borrador: val.data }, $setOnInsert: { estado: 'borrador', version: 0 } }, { upsert: true });
+  const f = await Flujo.findOne({ nombre }).lean<FlujoDoc>();
+  return c.json({ ok: true, ...resumenFlujo(f as FlujoDoc) });
+});
+
+/** Publica el borrador: pasa a ser la definición que ejecutan API y worker. */
+admin.post('/api/flujos/:nombre/publicar', async (c) => {
+  const nombre = c.req.param('nombre');
+  const f = await Flujo.findOne({ nombre }).lean<FlujoDoc>();
+  if (!f) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  const def = (f.borrador ?? f.definicion) as FlujoDef | null;
+  if (!def) return c.json({ error: 'SIN_DEFINICION', mensaje: 'No hay nada que publicar' }, 400);
+  const val = FlujoDefSchema.safeParse(def);
+  if (!val.success) return c.json({ error: 'FLUJO_INVALIDO', mensaje: z.prettifyError(val.error) }, 400);
+  const version = (f.version ?? 0) + 1;
+  await Flujo.updateOne({ nombre }, { $set: { estado: 'publicado', version, definicion: val.data, borrador: null, publicadoEn: new Date() } });
+  return c.json({ ok: true, version });
+});
+
+/** Descarta el borrador y vuelve a la versión publicada. */
+admin.post('/api/flujos/:nombre/descartar', async (c) => {
+  const nombre = c.req.param('nombre');
+  const f = await Flujo.findOne({ nombre }).lean<FlujoDoc>();
+  if (!f) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  if (!f.definicion) {
+    await Flujo.deleteOne({ nombre });
+    return c.json({ ok: true, eliminado: true });
+  }
+  await Flujo.updateOne({ nombre }, { $set: { borrador: null } });
+  return c.json({ ok: true });
+});
+
+admin.delete('/api/flujos/:nombre', async (c) => {
+  const nombre = c.req.param('nombre');
+  const enUso = await Cliente.countDocuments({ modulos: { $elemMatch: { nombre, activo: true } } });
+  if (enUso) return c.json({ error: 'EN_USO', mensaje: `El flujo está habilitado en ${enUso} cliente(s); deshabilítelo primero` }, 409);
+  const r = await Flujo.deleteOne({ nombre });
+  return c.json({ ok: r.deletedCount === 1 });
+});
+
+/**
+ * Prueba el borrador con un cliente real: encola un trabajo marcado como prueba. El worker
+ * usa la definición en borrador, captura después de cada paso y escribe la bitácora en vivo.
+ */
+admin.post('/api/flujos/:nombre/probar', async (c) => {
+  const nombre = c.req.param('nombre');
+  let cuerpo: { cliente?: string; parametros?: Record<string, unknown>; origen?: 'borrador' | 'publicado' };
+  try {
+    cuerpo = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON_INVALIDO' }, 400);
+  }
+  const f = await Flujo.findOne({ nombre }).lean<FlujoDoc>();
+  if (!f) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  const origen = cuerpo.origen ?? 'borrador';
+  const def = (origen === 'borrador' ? (f.borrador ?? f.definicion) : f.definicion) as FlujoDef | null;
+  if (!def) return c.json({ error: 'SIN_DEFINICION', mensaje: 'Guarde el flujo antes de probarlo' }, 400);
+  if (!cuerpo.cliente) return c.json({ error: 'FALTA_CLIENTE', mensaje: 'Elija el cliente con cuya sesión se hará la prueba' }, 400);
+  const cliente = await Cliente.findOne({ slug: cuerpo.cliente }).lean<ClienteDoc>();
+  if (!cliente) return c.json({ error: 'CLIENTE_NO_ENCONTRADO' }, 404);
+  const val = esquemaParametros(def.parametros).safeParse(cuerpo.parametros ?? {});
+  if (!val.success) return c.json({ error: 'PARAMETROS_INVALIDOS', detalles: val.error.issues }, 400);
+  const trabajo = await encolar({
+    clienteSlug: cliente.slug,
+    modulo: nombre,
+    portal: def.portal,
+    parametros: val.data as Record<string, unknown>,
+    modo: 'async',
+    prioridad: 10,
+    prueba: { origen, capturarCadaPaso: true },
+  });
+  return c.json(detalle(trabajo), 202);
+});
+
+/** Habilita o deshabilita un módulo (en código o flujo) para un cliente, conservando su config. */
+admin.put('/api/clientes/:slug/modulos/:modulo', async (c) => {
+  const { slug, modulo } = c.req.param();
+  let cuerpo: { activo?: boolean; config?: Record<string, unknown> };
+  try {
+    cuerpo = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON_INVALIDO' }, 400);
+  }
+  const existe = registro[modulo] || (await Flujo.exists({ nombre: modulo }));
+  if (!existe) return c.json({ error: 'MODULO_INEXISTENTE' }, 404);
+  const cliente = await Cliente.findOne({ slug });
+  if (!cliente) return c.json({ error: 'CLIENTE_NO_ENCONTRADO' }, 404);
+  const lista = cliente.get('modulos') as Array<{ nombre: string; activo: boolean; config: Record<string, unknown> }>;
+  const i = lista.findIndex((m) => m.nombre === modulo);
+  const activo = cuerpo.activo ?? true;
+  if (i < 0) lista.push({ nombre: modulo, activo, config: cuerpo.config ?? {} });
+  else {
+    lista[i].activo = activo;
+    if (cuerpo.config) lista[i].config = cuerpo.config;
+  }
+  cliente.set('modulos', lista);
+  cliente.markModified('modulos');
+  await cliente.save();
+  return c.json({ ok: true, activo });
+});
+
 // Sirve una captura local (evidencias/ o inspeccion/) para verla en el panel.
 admin.get('/api/captura', async (c) => {
   const ruta = c.req.query('ruta');
@@ -266,6 +444,8 @@ function detalle(t: TrabajoDoc) {
     resultado: t.resultado ?? null,
     error_mensaje: t.error?.mensaje ?? null,
     intentos: t.intentos,
+    prueba: t.prueba ?? null,
+    bitacora: (t.bitacora ?? []).map((a) => ({ t: a.t, mensaje: a.mensaje })),
     // Cloudinary devuelve http(s); las locales se sirven por /admin/api/captura.
     capturas: (t.capturas ?? []).map((ruta) => (/^https?:\/\//.test(ruta) ? ruta : `/admin/api/captura?ruta=${encodeURIComponent(ruta)}`)),
   };

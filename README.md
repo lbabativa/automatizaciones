@@ -172,3 +172,15 @@ npm run test:flujos    # prueba el intérprete contra un portal falso (core/test
 Tipos de paso: `ir`, `clic`, `escribir`, `seleccionar`, `presionar`, `esperar`, `leer`, `leer_lista`, `leer_tabla`, `leer_lineas`, `capturar`, `asignar`, `agregar`, `buscar`, `transformar`, `elegir`, `decidir`, `si`, `para_cada`, `error`, `fin`. Los elementos se ubican con un **objetivo** (`selector`, `texto`, `rol`+`nombre`, `etiqueta`, `placeholder`, con `con_texto`, `indice` y `dentro_de`). Cualquier texto admite plantillas `{{variable}}`: los parámetros de la consulta, `{{config.<clave>}}`, `{{credenciales.<campo>}}`, `{{hoy}}` y todo lo leído en pasos anteriores. Las condiciones de `si`, `decidir` y `elegir` comparan variables (`igual`, `contiene`, `coincide`, `vacio`, `mayor`...) o la página (`existe`, `texto_visible`, `url_coincide`). El esquema completo está en `core/src/flujos/esquema.ts`.
 
 Dentro de los textos que se ejecutan en el navegador (`page.evaluate`) no se pueden declarar funciones con nombre: bajo tsx, esbuild les inyecta un helper `__name` que en la página no existe. Por eso esas lecturas van como texto.
+
+### Editor de flujos en la consola
+
+En `/admin/flujos` se crean y editan los flujos sin tocar código: datos generales, parámetros de entrada, condición de sesión y login, pasos (con formularios por tipo, pasos anidados en `si` y `para_cada`, reordenar, duplicar, pegar JSON), plantilla del resultado, clientes habilitados y la definición completa en JSON.
+
+Ciclo de trabajo:
+
+1. **Guardar borrador**: valida contra el esquema y guarda sin afectar producción.
+2. **Probar aquí**: encola una prueba con la sesión real de un cliente. El worker usa el borrador, captura después de cada paso que toca la página y escribe una bitácora que la consola muestra en vivo, con el resultado o el paso exacto donde falló.
+3. **Publicar**: el borrador pasa a ser la versión que ejecutan la API y el worker (sube la versión). El worker toma la nueva versión sin reiniciarse.
+
+Un flujo publicado se habilita a un cliente desde la pestaña Clientes y desde ese momento aparece en Consultas y responde en `POST /v1/<portal>/<nombre>` con la clave del cliente.

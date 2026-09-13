@@ -11,6 +11,17 @@ const ErrorSchema = new Schema(
   { _id: false },
 );
 
+const AnotacionSchema = new Schema({ t: { type: Date, default: Date.now }, mensaje: { type: String, required: true } }, { _id: false });
+
+/** Marca un trabajo de prueba lanzado desde el editor de flujos. */
+const PruebaSchema = new Schema(
+  {
+    origen: { type: String, enum: ['borrador', 'publicado'], default: 'borrador' },
+    capturarCadaPaso: { type: Boolean, default: true },
+  },
+  { _id: false },
+);
+
 const TrabajoSchema = new Schema(
   {
     clienteSlug: { type: String, required: true, index: true },
@@ -27,6 +38,9 @@ const TrabajoSchema = new Schema(
     resultado: { type: Schema.Types.Mixed },
     error: { type: ErrorSchema },
     capturas: { type: [String], default: [] },
+    /** Registro paso a paso que escribe el worker mientras ejecuta (visible en la consola). */
+    bitacora: { type: [AnotacionSchema], default: [] },
+    prueba: { type: PruebaSchema },
     workerId: { type: String },
     iniciadoEn: { type: Date },
     terminadoEn: { type: Date },

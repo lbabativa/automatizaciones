@@ -138,6 +138,7 @@ tr.sel td{background:var(--accent-soft)}
 <div id="app" hidden>
 <header>
   <div class="marca" style="margin:0"><div class="logo">S</div><div><b>Consola StartIA</b><small>Automatizaciones</small></div></div>
+  <nav style="display:flex;gap:4px;margin-left:12px"><a class="chip" style="text-decoration:none;background:var(--accent-soft);color:var(--accent-ink)">Consultas</a><a class="chip" style="text-decoration:none" href="/admin/flujos">Flujos</a></nav>
   <div class="estado">
     <span id="est-db" class="chip"><span class="dot"></span>Conectando…</span>
     <span id="est-cola" class="chip" title="Consultas en cola y en curso">cola 0 · en curso 0</span>
@@ -446,7 +447,8 @@ const fmtPesos = (n) => (typeof n === 'number' ? '$ ' + n.toLocaleString('es-CO'
 
 function pintarError(msg) { $('#resultado').innerHTML = `<div class="error">${esc(msg)}</div>`; }
 function pintarProgreso(msg, t) {
-  $('#resultado').innerHTML = `<div class="progreso"><div class="spinner"></div><div><b>${esc(msg)}</b>${t ? `<div class="ayuda">${esc(nombreCliente(t.cliente))} · ${esc(descParams(t.parametros))}</div>` : ''}</div></div>`;
+  const ultima = t && t.bitacora && t.bitacora.length ? t.bitacora[t.bitacora.length - 1].mensaje : '';
+  $('#resultado').innerHTML = `<div class="progreso"><div class="spinner"></div><div><b>${esc(msg)}</b>${t ? `<div class="ayuda">${esc(nombreCliente(t.cliente))} · ${esc(descParams(t.parametros))}</div>` : ''}${ultima ? `<div class="ayuda mono">${esc(ultima)}</div>` : ''}</div></div>`;
 }
 const descParams = (p) => p && p.num_doc ? `${p.tipo_doc || ''} ${p.num_doc}${p.cups ? ' · CUPS ' + p.cups : ''}${p.fecha_cita ? ' · cita ' + fmtFecha(p.fecha_cita) : ''}` : JSON.stringify(p);
 

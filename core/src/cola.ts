@@ -9,6 +9,7 @@ export interface NuevoTrabajo {
   modo?: 'sync' | 'async';
   callbackUrl?: string;
   prioridad?: number;
+  prueba?: { origen: 'borrador' | 'publicado'; capturarCadaPaso: boolean };
 }
 
 export async function encolar(datos: NuevoTrabajo): Promise<TrabajoDoc> {
@@ -83,6 +84,16 @@ export async function fallar(id: TrabajoDoc['_id'], error: ErrorTrabajo, captura
     },
   );
   return puedeReintentar;
+}
+
+/** Añade una línea a la bitácora del trabajo (máximo 400, las más recientes). No lanza: es informativo. */
+export async function anotar(id: TrabajoDoc['_id'], mensaje: string): Promise<void> {
+  await Trabajo.updateOne({ _id: id }, { $push: { bitacora: { $each: [{ t: new Date(), mensaje }], $slice: -400 } } }).catch(() => undefined);
+}
+
+/** Registra una captura apenas se guarda, para verla en la consola mientras el robot sigue trabajando. */
+export async function agregarCaptura(id: TrabajoDoc['_id'], url: string): Promise<void> {
+  await Trabajo.updateOne({ _id: id }, { $addToSet: { capturas: url } }).catch(() => undefined);
 }
 
 /** Espera a que un trabajo termine, consultando la base cada `intervaloMs`. Devuelve null si vence el tiempo. */
