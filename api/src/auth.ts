@@ -1,5 +1,6 @@
 import { Cliente, hashApiKey, type ClienteDoc } from '@startia/core';
 import type { Context, Next } from 'hono';
+import { origenPermitido } from './origenes.js';
 
 export type Variables = { cliente: ClienteDoc };
 
@@ -13,6 +14,16 @@ export async function autenticar(c: Context<{ Variables: Variables }>, next: Nex
   const cliente = await Cliente.findOne({ apiKeyHash: hashApiKey(apiKey) }).lean<ClienteDoc>();
   if (!cliente) return c.json({ error: 'API_KEY_INVALIDA', mensaje: 'La clave no corresponde a ningún cliente' }, 401);
   if (!cliente.activo) return c.json({ error: 'CLIENTE_INACTIVO', mensaje: 'El cliente está desactivado' }, 403);
+
+  // Dominios permitidos: un navegador envía Origin; un servidor normalmente no.
+  const origen = c.req.header('origin');
+  if (origen) {
+    if (!origenPermitido(origen, cliente.origenesPermitidos ?? [])) {
+      return c.json({ error: 'ORIGEN_NO_PERMITIDO', mensaje: `El dominio ${origen} no está autorizado para usar esta clave` }, 403);
+    }
+  } else if (cliente.permitirSinOrigen === false) {
+    return c.json({ error: 'ORIGEN_REQUERIDO', mensaje: 'Esta clave solo se acepta desde los dominios autorizados del cliente' }, 403);
+  }
 
   const ahora = Date.now();
   const v = ventanas.get(cliente.slug);

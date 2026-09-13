@@ -10,7 +10,7 @@ window.StartiaIntegracion = (() => {
   // Identificadores
   // ---------------------------------------------------------------------------------
   const VACIAS = new Set(['de', 'del', 'la', 'las', 'el', 'los', 'en', 'y', 'a', 'para', 'por', 'un', 'una', 'con', 'al']);
-  const palabras = (texto) => String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
+  const palabras = (texto) => String(texto || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
   const recortar = (s, max, sep) => (s.length <= max ? s : s.slice(0, max).replace(new RegExp(`\\${sep}[^\\${sep}]*$`), '') || s.slice(0, max));
 
   /** "Consultar autorizaciones en Sanitas" → "consultar-autorizaciones-sanitas" */

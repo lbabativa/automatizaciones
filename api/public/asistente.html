@@ -240,7 +240,7 @@ summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--muted)}
 <body>
 <header>
   <div class="marca"><div class="logo">S</div><div><b>Consola StartIA</b><small>Automatizaciones</small></div></div>
-  <nav><a class="chip" href="/admin/clientes">Clientes</a><a class="chip" href="/admin/flujos">Flujos</a><a class="chip" href="/admin">Consultas</a><a class="chip cta" href="/admin/nueva" aria-current="page">＋ Nueva automatización</a></nav>
+  <nav><a class="chip" href="/admin/clientes">Clientes</a><a class="chip" href="/admin/flujos">Flujos</a><a class="chip" href="/admin">Consultas</a><a class="chip" href="/admin/lotes">Lotes</a><a class="chip cta" href="/admin/nueva" aria-current="page">＋ Nueva automatización</a></nav>
   <div class="der"><span id="usuario" class="mono"></span><button class="ghost" id="btn-salir">Salir</button></div>
 </header>
 
@@ -1374,6 +1374,9 @@ VISTAS.entregar = {
     const cfg = ((c.modulos.find((x) => x.nombre === d.nombre) || {}).config) || {};
     const checks = [
       ['ok', `Cliente <b>${esc(c.nombre)}</b> <span class="mono">${esc(c.slug)}</span>`],
+      (c.origenesPermitidos || []).length
+        ? ['ok', `Navegadores permitidos desde <span class="mono">${c.origenesPermitidos.map(esc).join(', ')}</span>${c.permitirSinOrigen === false ? ' (solo desde esos dominios)' : ''}`]
+        : ['ok', `Solo llamadas desde servidores. Para llamarla desde un navegador, agregue el dominio en la <a href="/admin/clientes?c=${encodeURIComponent(c.slug)}">ficha del cliente</a>.`],
       faltan.length ? ['warn', `Los pasos usan <span class="mono">${faltan.map(esc).join(', ')}</span> y ${esc(c.nombre)} no los tiene guardados en ${esc(d.portal)}: la consulta fallará hasta cargarlos en "Portal y acceso" o en la ficha del cliente.`]
         : esSinLogin(d) ? ['ok', `Portal <span class="mono">${esc(d.portal)}</span> sin inicio de sesión`]
         : creds.length ? ['ok', `Credenciales de <span class="mono">${esc(d.portal)}</span> guardadas (${creds.map(esc).join(', ')})`]

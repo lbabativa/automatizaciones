@@ -1,6 +1,6 @@
 import mongoose, { Schema, type InferSchemaType } from 'mongoose';
 
-export const ESTADOS_TRABAJO = ['pendiente', 'en_proceso', 'completado', 'fallido'] as const;
+export const ESTADOS_TRABAJO = ['programado', 'pendiente', 'en_proceso', 'completado', 'fallido'] as const;
 export type EstadoTrabajo = (typeof ESTADOS_TRABAJO)[number];
 
 const ErrorSchema = new Schema(
@@ -41,6 +41,10 @@ const TrabajoSchema = new Schema(
     /** Registro paso a paso que escribe el worker mientras ejecuta (visible en la consola). */
     bitacora: { type: [AnotacionSchema], default: [] },
     prueba: { type: PruebaSchema },
+    /** Lote al que pertenece, si llegó en un lote. */
+    loteId: { type: Schema.Types.ObjectId, index: true },
+    /** Consultas programadas: pasan a pendiente cuando llega esta hora. */
+    disponibleDesde: { type: Date },
     workerId: { type: String },
     iniciadoEn: { type: Date },
     terminadoEn: { type: Date },
@@ -51,6 +55,7 @@ const TrabajoSchema = new Schema(
 
 TrabajoSchema.index({ estado: 1, prioridad: -1, createdAt: 1 });
 TrabajoSchema.index({ huella: 1, estado: 1, terminadoEn: -1 });
+TrabajoSchema.index({ estado: 1, disponibleDesde: 1 });
 
 export type ErrorTrabajo = InferSchemaType<typeof ErrorSchema>;
 export type TrabajoDoc = InferSchemaType<typeof TrabajoSchema> & { _id: mongoose.Types.ObjectId; createdAt: Date; updatedAt: Date };

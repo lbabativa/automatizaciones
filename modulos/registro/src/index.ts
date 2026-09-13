@@ -1,4 +1,4 @@
-import { Flujo, moduloDesdeFlujo, type FlujoDef, type FlujoDoc, type Modulo, type ParametroDef } from '@startia/core';
+import { Flujo, moduloDesdeFlujo, parametrosDesdeZod, type FlujoDef, type FlujoDoc, type Modulo, type ParametroDef } from '@startia/core';
 import sanitasAutorizaciones from '@startia/modulo-sanitas-autorizaciones';
 
 /**
@@ -29,7 +29,7 @@ export interface ResumenModulo {
   portal: string;
   version: string;
   descripcion: string;
-  /** Solo en flujos declarativos: definición de los campos de entrada, para pintar el formulario. */
+  /** Campos de entrada: los del flujo, o derivados del esquema zod en los módulos en código. Sirven para formularios y para asignar columnas de un Excel. */
   parametros?: ParametroDef[];
   origen: 'codigo' | 'flujo';
 }
@@ -39,7 +39,7 @@ function resumir(m: Modulo, origen: ResumenModulo['origen'], parametros?: Parame
 }
 
 export function listarModulos(): ResumenModulo[] {
-  return lista.map((m) => resumir(m, 'codigo'));
+  return lista.map((m) => resumir(m, 'codigo', parametrosDesdeZod(m.parametros)));
 }
 
 export interface OpcionesResolver {
@@ -70,6 +70,12 @@ export async function listarModulosDisponibles(): Promise<ResumenModulo[]> {
       return resumir(moduloDesdeFlujo(def, f.version), 'flujo', def.parametros);
     });
   return [...listarModulos(), ...declarativos];
+}
+
+/** Parámetros de un módulo disponible (flujo publicado o en código); null si no existe. */
+export async function parametrosDeModulo(nombre: string): Promise<ParametroDef[] | null> {
+  const m = (await listarModulosDisponibles()).find((x) => x.nombre === nombre);
+  return m ? (m.parametros ?? []) : null;
 }
 
 /** Nombres que un worker puede ejecutar: los de código más todos los flujos (los borradores solo llegan como pruebas). */

@@ -1,11 +1,14 @@
-import { buscarEnCache, buscarEnCurso, conectarDb, encolar, envNum, esperarResultado, Trabajo, type TrabajoDoc } from '@startia/core';
+import { buscarEnCache, buscarEnCurso, cancelarLote, conectarDb, crearLote, encolar, envNum, esperarResultado, Lote, Trabajo, type LoteDoc, type TrabajoDoc } from '@startia/core';
 import { listarModulosDisponibles, resolverModulo } from '@startia/modulos';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { logger } from 'hono/logger';
 import mongoose from 'mongoose';
 import { z } from 'zod';
 import { admin } from './admin.js';
 import { autenticar, type Variables } from './auth.js';
+import { cors } from './origenes.js';
+import { respuestaResultado } from './exportar.js';
+import { EntradaLote, fechaProgramada, presentarLote, validarFilas } from './lotes.js';
 
 export const app = new Hono<{ Variables: Variables }>();
 app.use(logger());
@@ -25,6 +28,8 @@ app.use('*', async (_c, next) => {
 app.route('/admin', admin);
 
 app.get('/', (c) => c.json({ servicio: 'startia-automatizaciones', version: '0.1.0', panel: '/admin' }));
+// CORS de /v1 con los dominios permitidos de cada cliente (se configuran en la consola).
+app.use('/v1/*', cors);
 app.get('/v1/salud', async (c) => {
   const db = mongoose.connection.readyState === 1;
   const pendientes = db ? await Trabajo.countDocuments({ estado: 'pendiente' }) : null;
@@ -109,6 +114,76 @@ app.post('/v1/:portal/:modulo', async (c) => {
     return c.json({ ...presentar(actual ?? trabajo), mensaje: 'El robot sigue trabajando; consulte estado_url' }, 202);
   }
   return c.json(presentar(trabajo), 202);
+});
+
+// ---------------------------------------------------------------------------------
+// Lotes: muchas consultas en una sola llamada
+// ---------------------------------------------------------------------------------
+
+/**
+ * Crea un lote. Cuerpo: { items: [{ ...parámetros }], nombre?, forzar?, programar_para? }.
+ * Si alguna fila no cumple los parámetros no se crea nada y se devuelve el motivo de cada una.
+ */
+app.post('/v1/:portal/:modulo/lote', async (c) => {
+  const cliente = c.get('cliente');
+  const portal = c.req.param('portal');
+  const nombre = c.req.param('modulo');
+  const modulo = await resolverModulo(nombre);
+  if (!modulo || modulo.portal !== portal) return c.json({ error: 'MODULO_INEXISTENTE', mensaje: `No existe el módulo ${portal}/${nombre}` }, 404);
+  if (!cliente.modulos.some((m) => m.nombre === nombre && m.activo)) {
+    return c.json({ error: 'MODULO_NO_CONTRATADO', mensaje: `El módulo ${nombre} no está habilitado para ${cliente.slug}` }, 403);
+  }
+  let cuerpo: unknown;
+  try {
+    cuerpo = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON_INVALIDO', mensaje: 'El cuerpo debe ser JSON' }, 400);
+  }
+  const entrada = EntradaLote.safeParse(cuerpo);
+  if (!entrada.success) return c.json({ error: 'LOTE_INVALIDO', detalles: z.treeifyError(entrada.error) }, 400);
+  const { validos, errores } = validarFilas(modulo, entrada.data.items);
+  if (errores.length) {
+    return c.json({ error: 'ITEMS_INVALIDOS', mensaje: `${errores.length} fila(s) con parámetros inválidos; no se creó el lote`, detalles: errores.slice(0, 200) }, 400);
+  }
+  const lote = await crearLote({
+    clienteSlug: cliente.slug,
+    modulo: nombre,
+    portal,
+    items: validos,
+    nombre: entrada.data.nombre,
+    origen: 'api',
+    forzar: entrada.data.forzar,
+    programadoPara: fechaProgramada(entrada.data.programar_para),
+    cacheHoras: envNum('CACHE_HORAS', 12),
+  });
+  const p = await presentarLote(lote);
+  return c.json({ ...p, estado_url: `/v1/lotes/${p.id}`, resultado_url: `/v1/lotes/${p.id}/resultado?formato=xlsx` }, 202);
+});
+
+async function loteDelCliente(c: Context<{ Variables: Variables }>): Promise<LoteDoc | null> {
+  const id = c.req.param('id');
+  if (!id || !mongoose.isValidObjectId(id)) return null;
+  return Lote.findOne({ _id: id, clienteSlug: c.get('cliente').slug }).lean<LoteDoc>();
+}
+
+/** Estado, contadores, tiempo estimado y filas (?desde=0&limite=100&estado=completado|fallido|activos). */
+app.get('/v1/lotes/:id', async (c) => {
+  const lote = await loteDelCliente(c);
+  if (!lote) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  return c.json(await presentarLote(lote, { desde: Number(c.req.query('desde') ?? 0), limite: Number(c.req.query('limite') ?? 100), estado: c.req.query('estado') }));
+});
+
+app.post('/v1/lotes/:id/cancelar', async (c) => {
+  const lote = await loteDelCliente(c);
+  if (!lote) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  return c.json(await presentarLote((await cancelarLote(lote._id)) ?? lote));
+});
+
+/** Resultados en Excel (?formato=xlsx, por defecto) o CSV (?formato=csv). */
+app.get('/v1/lotes/:id/resultado', async (c) => {
+  const lote = await loteDelCliente(c);
+  if (!lote) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  return respuestaResultado(c, lote);
 });
 
 function presentar(t: TrabajoDoc) {

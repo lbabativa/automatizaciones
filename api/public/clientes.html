@@ -75,12 +75,17 @@ aside h2 button{margin-left:auto}
 .modal-fondo{position:fixed;inset:0;background:rgba(10,20,40,.45);display:grid;place-items:center;z-index:20}
 .modal{background:var(--paper);border-radius:12px;padding:20px;width:min(520px,92vw);box-shadow:var(--shadow)}
 .modal h3{margin:0 0 6px}
+.origenes{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center}
+.origenes .chip{padding:2px 4px 2px 10px;background:var(--accent-soft);color:var(--accent-ink)}
+.origenes .chip button{padding:0 6px;color:var(--accent-ink)}
+.fila-origen{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
+.fila-origen input{max-width:360px}
 </style>
 </head>
 <body>
 <header>
   <div class="marca"><div class="logo">S</div><div><b>Consola StartIA</b><small>Automatizaciones</small></div></div>
-  <nav><a class="chip" style="background:var(--accent-soft);color:var(--accent-ink)" aria-current="page">Clientes</a><a class="chip" href="/admin/flujos">Flujos</a><a class="chip" href="/admin">Consultas</a><a class="chip" href="/admin/nueva" style="background:var(--accent);color:#fff;margin-left:6px">＋ Nueva automatización</a></nav>
+  <nav><a class="chip" style="background:var(--accent-soft);color:var(--accent-ink)" aria-current="page">Clientes</a><a class="chip" href="/admin/flujos">Flujos</a><a class="chip" href="/admin">Consultas</a><a class="chip" href="/admin/lotes">Lotes</a><a class="chip" href="/admin/nueva" style="background:var(--accent);color:#fff;margin-left:6px">＋ Nueva automatización</a></nav>
   <div class="der"><span id="usuario" class="mono"></span><button class="ghost" id="btn-salir">Salir</button></div>
 </header>
 
@@ -116,8 +121,18 @@ aside h2 button{margin-left:auto}
       </div>
 
       <div class="card">
+        <h3>Dominios permitidos</h3>
+        <p class="ayuda">Sitios web desde los que un navegador puede llamar a la API con la clave de este cliente (CORS). Escriba el dominio completo, sin ruta: <span class="mono">https://portal.cardioib.com</span>, o <span class="mono">https://*.cardioib.com</span> para todos sus subdominios.</p>
+        <div id="c-origenes" class="origenes"></div>
+        <div class="fila-origen"><input id="c-origen-nuevo" class="mono" placeholder="https://portal.cardioib.com" autocomplete="off" aria-label="Dominio nuevo"><button class="mini sec" id="btn-origen">+ Agregar</button></div>
+        <label style="display:flex;gap:6px;align-items:center;margin-top:14px;font-weight:500"><input type="checkbox" id="c-sin-origen"> Permitir también llamadas desde servidores (sin dominio de origen)</label>
+        <p class="ayuda">Desmárquelo para que la clave solo funcione desde los dominios de la lista. El dominio de origen lo pone el navegador y un programa puede falsificarlo: esto evita que otras páginas usen la clave, pero lo que protege el acceso sigue siendo guardarla en el servidor del cliente.</p>
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center"><button id="btn-guardar-origenes">Guardar dominios</button><span class="ayuda" id="origenes-msg" style="margin:0"></span></div>
+      </div>
+
+      <div class="card">
         <h3>Códigos de integración</h3>
-        <p class="ayuda">Lo que se entrega al equipo técnico del cliente para llamar cada automatización habilitada: dirección, clave y un ejemplo listo para copiar.</p>
+        <p class="ayuda">Lo que se entrega al equipo técnico del cliente para llamar cada automatización habilitada: dirección, clave y un ejemplo listo para copiar. Si la llaman desde un navegador, su dominio debe estar en Dominios permitidos.</p>
         <div id="c-integracion" style="margin-top:10px"></div>
       </div>
 
@@ -188,7 +203,7 @@ function abrir(slug) {
   $('#c-clave').innerHTML = CLAVES[c.slug] ? htmlClaveCompleta(CLAVES[c.slug]) : `<span class="mono">${esc(c.apiKeyPrefijo || 'rpa_' + c.slug + '_')}••••••••••••</span>`;
   if (CLAVES[c.slug]) $('#btn-copiar-clave').onclick = (e) => StartiaIntegracion.copiar(CLAVES[c.slug], e.currentTarget);
   $('#btn-disenar').href = '/admin/nueva?c=' + encodeURIComponent(c.slug) + (c.modulos.length ? '' : '&paso=portal');
-  pintarPortales(c); pintarModulos(c); pintarIntegracion(c);
+  pintarPortales(c); pintarModulos(c); pintarIntegracion(c); pintarOrigenes(c);
 }
 
 function pintarPortales(c) {
@@ -224,6 +239,39 @@ $('#btn-portal').onclick = () => {
   if (!PORTALES.some((x) => x.portal === p)) PORTALES.push({ portal: p, campos: ['usuario', 'password'] });
   $('#c-portal-nuevo').value = '';
   pintarPortales(CLIENTES.find((x) => x.slug === SEL));
+};
+
+// Dominios permitidos (CORS): la lista se edita en memoria y se guarda con el botón.
+let ORIGENES = [];
+const patronOrigen = (s) => { const v = String(s || '').trim().toLowerCase().replace(/\/+$/, ''); return /^https?:\/\/(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)*(:\d{1,5})?$/.test(v) ? v : null; };
+function pintarOrigenes(c, conservar) {
+  if (!conservar) { ORIGENES = [...(c.origenesPermitidos || [])]; $('#c-sin-origen').checked = c.permitirSinOrigen !== false; $('#origenes-msg').textContent = ''; }
+  const vacio = $('#c-sin-origen').checked ? 'Ningún dominio: la clave solo se acepta desde servidores.' : 'Ningún dominio y sin llamadas de servidor: nadie podrá usar la clave.';
+  $('#c-origenes').innerHTML = ORIGENES.length
+    ? ORIGENES.map((o, i) => `<span class="chip"><span class="mono">${esc(o)}</span><button class="ghost mini" data-quitar-origen="${i}" aria-label="Quitar ${esc(o)}">✕</button></span>`).join('')
+    : `<span class="ayuda" style="margin:0">${vacio}</span>`;
+  $('#c-origenes').querySelectorAll('[data-quitar-origen]').forEach((b) => (b.onclick = () => { ORIGENES.splice(Number(b.dataset.quitarOrigen), 1); pintarOrigenes(c, true); $('#origenes-msg').textContent = 'Cambios sin guardar.'; }));
+}
+$('#btn-origen').onclick = () => {
+  const entrada = $('#c-origen-nuevo').value;
+  if (!entrada.trim()) return;
+  const v = patronOrigen(entrada);
+  if (!v) { $('#origenes-msg').textContent = 'Escriba el dominio completo, por ejemplo https://portal.cardioib.com, sin ruta.'; return; }
+  if (!ORIGENES.includes(v)) ORIGENES.push(v);
+  $('#c-origen-nuevo').value = '';
+  pintarOrigenes(CLIENTES.find((x) => x.slug === SEL), true);
+  $('#origenes-msg').textContent = 'Cambios sin guardar.';
+};
+$('#c-origen-nuevo').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#btn-origen').click(); } };
+$('#c-sin-origen').onchange = () => { pintarOrigenes(CLIENTES.find((x) => x.slug === SEL), true); $('#origenes-msg').textContent = 'Cambios sin guardar.'; };
+$('#btn-guardar-origenes').onclick = async () => {
+  if ($('#c-origen-nuevo').value.trim()) { $('#btn-origen').click(); if ($('#c-origen-nuevo').value.trim()) return; }
+  if (!ORIGENES.length && !$('#c-sin-origen').checked && !confirm('Sin dominios y sin llamadas de servidor, nadie podrá usar la clave de este cliente. ¿Guardar así?')) return;
+  try {
+    await api('/clientes/' + SEL, { method: 'PUT', body: JSON.stringify({ origenesPermitidos: ORIGENES, permitirSinOrigen: $('#c-sin-origen').checked }) });
+    await cargar();
+    $('#origenes-msg').textContent = 'Dominios guardados. Pueden tardar hasta un minuto en aplicarse.';
+  } catch (e) { $('#origenes-msg').textContent = e.message; }
 };
 
 function pintarIntegracion(c) {

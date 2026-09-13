@@ -6,6 +6,7 @@
  * cuenta del mismo portal, que es lo que los portales de las EPS bloquean.
  */
 import {
+  activarProgramados,
   agregarCaptura,
   anotar,
   clavePublicaWorker,
@@ -153,12 +154,19 @@ async function principal(): Promise<void> {
   log(`Worker listo. Módulos en código: ${Object.keys(registro).join(', ')}. Flujos publicados: ${modulosSoportados.filter((m) => !registro[m]).join(', ') || 'ninguno'}. Headless: ${HEADLESS}`);
   let ultimoRescate = 0;
   let ultimaLista = Date.now();
+  let ultimaActivacion = 0;
 
   while (!detener) {
     if (Date.now() - ultimoRescate > 5 * 60_000) {
       const n = await rescatarHuerfanos(15);
       if (n) log(`${n} trabajo(s) huérfano(s) devueltos a la cola`);
       ultimoRescate = Date.now();
+    }
+    if (Date.now() - ultimaActivacion > 15_000) {
+      // Lotes programados: sus consultas pasan a la cola cuando llega la hora.
+      const activadas = await activarProgramados().catch(() => 0);
+      if (activadas) log(`${activadas} consulta(s) programada(s) pasan a la cola`);
+      ultimaActivacion = Date.now();
     }
     if (Date.now() - ultimaLista > 30_000) {
       // Los flujos declarativos se publican desde la consola sin reiniciar el worker.

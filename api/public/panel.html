@@ -113,6 +113,7 @@ tr.sel td{background:var(--accent-soft)}
 .pill.en_proceso{background:var(--warn-soft);color:var(--warn)}
 .pill.completado{background:var(--ok-soft);color:var(--ok)}
 .pill.fallido{background:var(--crit-soft);color:var(--crit)}
+.pill.programado{background:var(--accent-soft);color:var(--accent-ink)}
 .sem{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
 .sem.VERDE{background:var(--ok)} .sem.AMARILLO{background:var(--warn)} .sem.ROJO{background:var(--crit)}
 @media(max-width:920px){main{grid-template-columns:1fr}}
@@ -138,7 +139,7 @@ tr.sel td{background:var(--accent-soft)}
 <div id="app" hidden>
 <header>
   <div class="marca" style="margin:0"><div class="logo">S</div><div><b>Consola StartIA</b><small>Automatizaciones</small></div></div>
-  <nav style="display:flex;gap:4px;margin-left:10px;align-items:center"><a class="chip" style="text-decoration:none" href="/admin/clientes">Clientes</a><a class="chip" style="text-decoration:none" href="/admin/flujos">Flujos</a><a class="chip" style="text-decoration:none;background:var(--accent-soft);color:var(--accent-ink)" aria-current="page">Consultas</a><a class="chip" style="text-decoration:none;background:var(--accent);color:#fff;margin-left:6px" href="/admin/nueva">＋ Nueva automatización</a></nav>
+  <nav style="display:flex;gap:4px;margin-left:10px;align-items:center"><a class="chip" style="text-decoration:none" href="/admin/clientes">Clientes</a><a class="chip" style="text-decoration:none" href="/admin/flujos">Flujos</a><a class="chip" style="text-decoration:none;background:var(--accent-soft);color:var(--accent-ink)" aria-current="page">Consultas</a><a class="chip" style="text-decoration:none" href="/admin/lotes">Lotes</a><a class="chip" style="text-decoration:none;background:var(--accent);color:#fff;margin-left:6px" href="/admin/nueva">＋ Nueva automatización</a></nav>
   <div class="estado">
     <span id="est-db" class="chip"><span class="dot"></span>Conectando…</span>
     <span id="est-cola" class="chip" title="Consultas en cola y en curso">cola 0 · en curso 0</span>

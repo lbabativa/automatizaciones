@@ -223,3 +223,27 @@ Entrega 2 del grabador: **pausar y reanudar** (botón en la barra, Ctrl+Shift+P 
 La ficha del cliente (`/admin/clientes`) muestra los mismos códigos de integración para cada automatización habilitada y genera el identificador al escribir el nombre.
 
 Cada worker publica un latido cada 30 s en `configuracion` (`worker:<WORKER_ID>`, con `ventana: true` si corre con `HEADLESS=false`); la consola lo lee en `GET /admin/api/estado` (`workers`). Al grabar, cualquier valor escrito que coincida con una credencial del cliente queda como `{{credenciales.<campo>}}`, y lo escrito en un campo de contraseña nunca se guarda en claro. Cada lectura grabada recibe su propia variable, sin tildes ni espacios: "Fecha de afiliación" queda `fecha_de_afiliacion`, y dos lecturas sin etiqueta o dos tablas quedan `valor`, `valor_2` y `filas`, `filas_2`. Al añadir pasos grabados a un flujo que ya usa ese nombre, se renombran con el siguiente sufijo libre.
+
+
+### Dominios permitidos por cliente (CORS)
+
+En la ficha del cliente (`/admin/clientes` › Dominios permitidos) se configuran los sitios web desde los que un navegador puede llamar a la API con la clave de ese cliente: `https://portal.cardioib.com`, o `https://*.cardioib.com` para todos sus subdominios (el comodín no incluye el dominio raíz). Van sin ruta; la consola los valida, normaliza y quita duplicados.
+
+- **Preflight:** `OPTIONS /v1/*` responde 204 con `Access-Control-Allow-Origin` solo si el dominio está configurado en algún cliente (la unión se refresca cada minuto); si no, 403. Las respuestas a dominios configurados llevan `Access-Control-Allow-Origin` para que el portal pueda leer también los errores.
+- **Con la clave:** si la petición trae `Origin` y no está en la lista de ese cliente, responde `403 ORIGEN_NO_PERMITIDO`.
+- **Sin `Origin` (desde servidores):** se acepta, salvo que se desmarque "Permitir también llamadas desde servidores" (`permitirSinOrigen: false`), que responde `403 ORIGEN_REQUERIDO`.
+
+El `Origin` lo pone el navegador. Evita que otra página web use una clave del cliente, pero un programa puede falsificarlo: la protección de fondo sigue siendo guardar la clave en el servidor del cliente. `npm run test:origenes` prueba la validación y la coincidencia de patrones.
+
+
+### Lotes
+
+Muchas consultas de una automatización en una sola solicitud, por API o con un Excel o CSV desde la consola. El robot las sigue haciendo una por una; el lote agrupa el envío, el avance y los resultados.
+
+- **Por API:** `POST /v1/<portal>/<automatizacion>/lote` con `{ "items": [ { ...parámetros }, … ], "nombre"?, "forzar"?, "programar_para"? }` (máximo 1.000 filas; `programar_para` en ISO 8601 con zona). Si alguna fila no cumple los parámetros responde `400 ITEMS_INVALIDOS` con el índice y el motivo de cada una, y no crea nada. Si todo está bien responde `202` con el id, `estado_url` y `resultado_url`. Una llamada de lote cuenta una sola vez para el límite por minuto.
+- `GET /v1/lotes/<id>`: estado (`programado`, `en_cola`, `procesando`, `terminado`, `cancelado`), contadores por fila, `restante_ms` estimado con un robot, e `items` paginados (`?desde=0&limite=100&estado=completado|fallido|activos`).
+- `GET /v1/lotes/<id>/resultado?formato=xlsx|csv`: una fila por consulta con parámetros, estado, cada campo del resultado y el error. `POST /v1/lotes/<id>/cancelar` cancela lo que no ha empezado.
+- **Consola:** `/admin/lotes` › Nuevo lote: cliente y automatización, Excel (.xlsx) o CSV (`;`, `,` o tabulador), columnas asignadas solas por nombre y ajustables (convierte "Cédula de ciudadanía" en `CC`, fechas de Excel y DD/MM/AAAA), revisión fila por fila con errores y repetidas, y "Ahora" o "Programar". La plantilla de cada automatización se descarga en Excel o CSV. El detalle se actualiza cada 5 s, filtra por estado, cancela pendientes y descarga los resultados.
+- **Cómo se procesa:** cada fila única es un trabajo con `loteId` y prioridad −1, así que las consultas sueltas pasan delante. Las filas repetidas comparten trabajo y las ya consultadas en las últimas `CACHE_HORAS` reutilizan el resultado (salvo `forzar`). Un lote programado deja sus trabajos en estado `programado` y el worker los pasa a la cola cuando llega la hora (`activarProgramados`, cada 15 s), así que **necesita el worker actualizado**. Al cerrar cada trabajo, `completar` y `fallar` recalculan el lote.
+- Los módulos en código exponen sus parámetros derivados del esquema zod (`parametrosDesdeZod`), para formularios y para asignar columnas.
+- El Excel se genera y se lee sin dependencias: zip con `zlib` en el servidor y `DecompressionStream` en el navegador.

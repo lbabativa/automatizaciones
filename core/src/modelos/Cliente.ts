@@ -21,6 +21,10 @@ const ClienteSchema = new Schema(
     modulos: { type: [ModuloClienteSchema], default: [] },
     /** { portal: { campo: valorCifrado } } */
     credenciales: { type: Schema.Types.Mixed, default: {} },
+    /** Dominios desde los que un navegador puede llamar a la API con la clave de este cliente (CORS). */
+    origenesPermitidos: { type: [String], default: [] },
+    /** Aceptar llamadas sin encabezado Origin (desde servidores). */
+    permitirSinOrigen: { type: Boolean, default: true },
   },
   { timestamps: true, collection: 'clientes' },
 );

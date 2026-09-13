@@ -13,19 +13,23 @@ import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  cancelarLote,
   cifrarConClavePublica,
   Cliente,
   Configuracion,
+  crearLote,
   encolar,
   generarApiKey,
   hashApiKey,
   env,
+  envNum,
   esperarResultado,
   esquemaParametros,
   Flujo,
   FlujoDefSchema,
   Grabacion,
   Inspeccion,
+  Lote,
   rutaProyecto,
   Sesion,
   Trabajo,
@@ -35,13 +39,17 @@ import {
   type FlujoDoc,
   type GrabacionDoc,
   type InspeccionDoc,
+  type LoteDoc,
   type TrabajoDoc,
 } from '@startia/core';
-import { listarModulosDisponibles, registro, resolverModulo } from '@startia/modulos';
+import { listarModulosDisponibles, parametrosDeModulo, registro, resolverModulo } from '@startia/modulos';
 import { z } from 'zod';
 import { Hono, type Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import mongoose from 'mongoose';
+import { olvidarPatrones, validarPatron } from './origenes.js';
+import { aCsv, aXlsx, filasPlantilla, respuestaResultado, TIPO_XLSX } from './exportar.js';
+import { EntradaLote, fechaProgramada, presentarLote, validarFilas } from './lotes.js';
 
 export const admin = new Hono();
 
@@ -125,6 +133,10 @@ admin.get('/clientes', async (c) => {
   const html = await leerPagina('clientes.html');
   return html ? c.html(html) : c.text('No se encontró api/public/clientes.html', 500);
 });
+admin.get('/lotes', async (c) => {
+  const html = await leerPagina('lotes.html');
+  return html ? c.html(html) : c.text('No se encontró api/public/lotes.html', 500);
+});
 admin.get('/nueva', async (c) => {
   const html = await leerPagina('asistente.html');
   return html ? c.html(html) : c.text('No se encontró api/public/asistente.html', 500);
@@ -200,6 +212,8 @@ admin.get('/api/clientes', async (c) => {
       activo: cl.activo,
       apiKeyPrefijo: cl.apiKeyPrefijo,
       nit: cl.nit ?? null,
+      origenesPermitidos: cl.origenesPermitidos ?? [],
+      permitirSinOrigen: cl.permitirSinOrigen !== false,
       modulos: cl.modulos.map((m) => ({ nombre: m.nombre, activo: m.activo, config: m.config })),
       portales: Object.keys((cl.credenciales as Record<string, unknown>) ?? {}),
       /** Solo los nombres de los campos guardados por portal, nunca los valores. */
@@ -275,7 +289,7 @@ admin.post('/api/clientes', async (c) => {
 
 admin.put('/api/clientes/:slug', async (c) => {
   const slug = c.req.param('slug');
-  let cuerpo: { nombre?: string; nit?: string; activo?: boolean };
+  let cuerpo: { nombre?: string; nit?: string; activo?: boolean; origenesPermitidos?: unknown; permitirSinOrigen?: boolean };
   try {
     cuerpo = await c.req.json();
   } catch {
@@ -285,8 +299,23 @@ admin.put('/api/clientes/:slug', async (c) => {
   if (typeof cuerpo.nombre === 'string' && cuerpo.nombre.trim()) cambios.nombre = cuerpo.nombre.trim();
   if (typeof cuerpo.nit === 'string') cambios.nit = cuerpo.nit.trim() || undefined;
   if (typeof cuerpo.activo === 'boolean') cambios.activo = cuerpo.activo;
+  if (cuerpo.origenesPermitidos !== undefined) {
+    if (!Array.isArray(cuerpo.origenesPermitidos)) return c.json({ error: 'ORIGEN_INVALIDO', mensaje: 'origenesPermitidos debe ser una lista' }, 400);
+    const validos: string[] = [];
+    const malos: string[] = [];
+    for (const o of cuerpo.origenesPermitidos) {
+      const v = typeof o === 'string' ? validarPatron(o) : null;
+      if (!v) malos.push(String(o));
+      else if (!validos.includes(v)) validos.push(v);
+    }
+    if (malos.length) return c.json({ error: 'ORIGEN_INVALIDO', mensaje: `No son dominios válidos: ${malos.join(', ')}. Use https://dominio.com o https://*.dominio.com, sin ruta.` }, 400);
+    if (validos.length > 30) return c.json({ error: 'DEMASIADOS_ORIGENES', mensaje: 'Máximo 30 dominios por cliente' }, 400);
+    cambios.origenesPermitidos = validos;
+  }
+  if (typeof cuerpo.permitirSinOrigen === 'boolean') cambios.permitirSinOrigen = cuerpo.permitirSinOrigen;
   const r = await Cliente.updateOne({ slug }, { $set: cambios });
   if (!r.matchedCount) return c.json({ error: 'CLIENTE_NO_ENCONTRADO' }, 404);
+  olvidarPatrones();
   return c.json({ ok: true });
 });
 
@@ -753,6 +782,87 @@ admin.put('/api/clientes/:slug/modulos/:modulo', async (c) => {
   cliente.markModified('modulos');
   await cliente.save();
   return c.json({ ok: true, activo });
+});
+
+// ---------------------------------------------------------------------------------
+// Lotes: muchas consultas de una automatización, desde un Excel o CSV
+// ---------------------------------------------------------------------------------
+
+admin.post('/api/lotes', async (c) => {
+  let cuerpo: Record<string, unknown>;
+  try {
+    cuerpo = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON_INVALIDO' }, 400);
+  }
+  const cliente = await Cliente.findOne({ slug: String(cuerpo.cliente ?? '') }).lean<ClienteDoc>();
+  if (!cliente) return c.json({ error: 'CLIENTE_NO_ENCONTRADO', mensaje: 'Elija el cliente' }, 404);
+  const nombre = String(cuerpo.modulo ?? '');
+  const modulo = await resolverModulo(nombre);
+  if (!modulo) return c.json({ error: 'MODULO_INEXISTENTE', mensaje: 'La automatización no existe o no está publicada' }, 404);
+  if (!cliente.modulos.some((m) => m.nombre === nombre && m.activo)) {
+    return c.json({ error: 'MODULO_NO_HABILITADO', mensaje: `La automatización no está habilitada para ${cliente.nombre}` }, 403);
+  }
+  const entrada = EntradaLote.safeParse(cuerpo);
+  if (!entrada.success) return c.json({ error: 'LOTE_INVALIDO', mensaje: z.prettifyError(entrada.error) }, 400);
+  const { validos, errores } = validarFilas(modulo, entrada.data.items);
+  if (errores.length) {
+    return c.json({ error: 'FILAS_INVALIDAS', mensaje: `${errores.length} fila(s) no cumplen los datos que pide la automatización; no se creó el lote.`, detalles: errores.slice(0, 200) }, 400);
+  }
+  const lote = await crearLote({
+    clienteSlug: cliente.slug,
+    modulo: nombre,
+    portal: modulo.portal,
+    items: validos,
+    nombre: entrada.data.nombre,
+    origen: 'consola',
+    archivo: typeof cuerpo.archivo === 'string' ? cuerpo.archivo.slice(0, 200) : undefined,
+    forzar: entrada.data.forzar,
+    programadoPara: fechaProgramada(entrada.data.programar_para),
+    cacheHoras: envNum('CACHE_HORAS', 12),
+  });
+  return c.json(await presentarLote(lote), 201);
+});
+
+admin.get('/api/lotes', async (c) => {
+  const filtro: Record<string, unknown> = {};
+  const cliente = c.req.query('cliente');
+  if (cliente) filtro.clienteSlug = cliente;
+  const limite = Math.min(Math.max(Number(c.req.query('limite') ?? 40) || 40, 1), 100);
+  const lotes = await Lote.find(filtro).select('-items.parametros -items.huella').sort({ createdAt: -1 }).limit(limite).lean<LoteDoc[]>();
+  return c.json({ lotes: await Promise.all(lotes.map((l) => presentarLote(l))) });
+});
+
+const loteDeConsola = (id: string) => (mongoose.isValidObjectId(id) ? Lote.findById(id).lean<LoteDoc>() : Promise.resolve(null));
+
+admin.get('/api/lotes/:id', async (c) => {
+  const lote = await loteDeConsola(c.req.param('id'));
+  if (!lote) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  return c.json(await presentarLote(lote, { desde: Number(c.req.query('desde') ?? 0), limite: Number(c.req.query('limite') ?? 100), estado: c.req.query('estado') }));
+});
+
+admin.post('/api/lotes/:id/cancelar', async (c) => {
+  const lote = await loteDeConsola(c.req.param('id'));
+  if (!lote) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  return c.json(await presentarLote((await cancelarLote(lote._id)) ?? lote));
+});
+
+admin.get('/api/lotes/:id/resultado', async (c) => {
+  const lote = await loteDeConsola(c.req.param('id'));
+  if (!lote) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  return respuestaResultado(c, lote);
+});
+
+/** Plantilla para llenar un lote: cabecera con los parámetros y una fila de ejemplo (?formato=xlsx|csv). */
+admin.get('/api/modulos/:nombre/plantilla', async (c) => {
+  const nombre = c.req.param('nombre');
+  const parametros = await parametrosDeModulo(nombre);
+  if (!parametros) return c.json({ error: 'MODULO_INEXISTENTE' }, 404);
+  const filas = filasPlantilla(parametros);
+  if (c.req.query('formato') === 'csv') {
+    return c.body(aCsv(filas), 200, { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="plantilla-${nombre}.csv"` });
+  }
+  return c.body(new Uint8Array(aXlsx(filas, 'Consultas')), 200, { 'content-type': TIPO_XLSX, 'content-disposition': `attachment; filename="plantilla-${nombre}.xlsx"` });
 });
 
 // Sirve una captura local (evidencias/ o inspeccion/) para verla en el panel.

@@ -25,6 +25,7 @@
     "test:flujos": "tsx core/test/interprete.test.ts",
     "test:grabador": "tsx worker/test/grabador.test.ts",
     "test:crypto": "tsx core/test/crypto.test.ts",
+    "test:origenes": "tsx api/test/origenes.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

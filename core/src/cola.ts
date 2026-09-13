@@ -1,4 +1,5 @@
 import { huellaTrabajo } from './crypto.js';
+import { actualizarLote } from './lotes.js';
 import { Trabajo, type ErrorTrabajo, type TrabajoDoc } from './modelos/Trabajo.js';
 
 export interface NuevoTrabajo {
@@ -45,7 +46,7 @@ export async function reclamar(workerId: string, modulos: string[]): Promise<Tra
 
 export async function completar(id: TrabajoDoc['_id'], resultado: unknown, capturas: string[]): Promise<void> {
   const ahora = new Date();
-  const doc = await Trabajo.findById(id).select('iniciadoEn').lean<Pick<TrabajoDoc, 'iniciadoEn'>>();
+  const doc = await Trabajo.findById(id).select('iniciadoEn loteId').lean<Pick<TrabajoDoc, 'iniciadoEn' | 'loteId'>>();
   await Trabajo.updateOne(
     { _id: id },
     {
@@ -59,6 +60,7 @@ export async function completar(id: TrabajoDoc['_id'], resultado: unknown, captu
       $unset: { error: '' },
     },
   );
+  if (doc?.loteId) await actualizarLote(doc.loteId).catch(() => undefined);
 }
 
 /**
@@ -66,7 +68,7 @@ export async function completar(id: TrabajoDoc['_id'], resultado: unknown, captu
  * Devuelve true si se reencoló.
  */
 export async function fallar(id: TrabajoDoc['_id'], error: ErrorTrabajo, capturas: string[], reintentar: boolean): Promise<boolean> {
-  const doc = await Trabajo.findById(id).select('intentos maxIntentos iniciadoEn').lean<Pick<TrabajoDoc, 'intentos' | 'maxIntentos' | 'iniciadoEn'>>();
+  const doc = await Trabajo.findById(id).select('intentos maxIntentos iniciadoEn loteId').lean<Pick<TrabajoDoc, 'intentos' | 'maxIntentos' | 'iniciadoEn' | 'loteId'>>();
   const puedeReintentar = reintentar && doc !== null && doc.intentos < doc.maxIntentos;
   const ahora = new Date();
   await Trabajo.updateOne(
@@ -83,6 +85,7 @@ export async function fallar(id: TrabajoDoc['_id'], error: ErrorTrabajo, captura
           },
     },
   );
+  if (!puedeReintentar && doc?.loteId) await actualizarLote(doc.loteId).catch(() => undefined);
   return puedeReintentar;
 }
 
