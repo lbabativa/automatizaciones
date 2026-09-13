@@ -143,6 +143,51 @@ ol.instr li{padding-left:4px}
 .subt{font-size:12px;font-weight:700;color:var(--muted);margin:12px 0 6px}
 .subt:first-of-type{margin-top:0}
 
+/* Condiciones */
+.casos .ayuda{margin-top:10px}
+.mapa{padding:16px 18px}
+.mapa > *{position:relative}
+.mapa > .nodo::before,.mapa > .insertar::before{content:"";position:absolute;left:7px;top:0;bottom:0;width:2px;background:var(--line)}
+.mapa > :first-child::before{top:50%}
+.mapa > :last-child::before{bottom:50%}
+.nodo{display:grid;grid-template-columns:16px 28px 118px minmax(0,1fr);gap:8px;align-items:center;padding:4px 0;font-size:13px}
+.nodo.extremo{grid-template-columns:16px minmax(0,1fr);color:var(--ink-2);font-weight:600}
+.nodo .punto{position:relative;z-index:1;width:10px;height:10px;border-radius:50%;background:var(--paper);border:2px solid var(--line-2);justify-self:center}
+.nodo.extremo .punto{background:var(--accent);border-color:var(--accent)}
+.nodo .num{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:right}
+.nodo .tx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nodo .val{color:var(--muted);margin-left:8px}
+.insertar{height:22px;display:flex;align-items:center;padding-left:26px}
+.insertar button{opacity:0;padding:0 8px;font-size:12px;line-height:18px;color:var(--accent-ink)}
+.insertar:hover button,.insertar button:focus-visible{opacity:1}
+@media (hover:none){.insertar button{opacity:.8}}
+.regla{margin:4px 0 4px 26px;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;background:var(--paper-2);padding:10px 12px}
+.mapa > .regla::before{content:"";position:absolute;left:-22px;top:-6px;bottom:-6px;width:2px;background:var(--line)}
+.mapa > .regla::after{content:"";position:absolute;left:-22px;top:20px;width:19px;height:2px;background:var(--accent)}
+.regla-cab{display:flex;gap:8px;align-items:center;font-size:13.5px;margin-bottom:4px}
+.regla-cab .der{margin-left:auto;display:flex;gap:2px}
+button.peligro-txt{color:var(--crit)}
+.regla-fila{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
+.regla-fila select,.regla-fila input{width:auto;flex:1 1 150px;min-width:0;padding:6px 8px}
+.regla-fila select[data-f=si],.regla-fila select[data-f=accion],.regla-fila select[data-f=op]{flex:0 1 auto}
+.kw{font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--accent-ink);text-transform:uppercase;letter-spacing:.05em;width:72px;flex:none}
+.regla-cuerpo{margin:2px 0 6px 80px}
+.pares{display:grid;gap:6px;margin-bottom:4px}
+.par{display:grid;grid-template-columns:minmax(0,170px) 12px minmax(0,1fr) 28px;gap:6px;align-items:center}
+.dos-campos{display:grid;grid-template-columns:minmax(0,230px) minmax(0,1fr);gap:8px}
+.fijo{background:var(--paper);border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:13px;flex:1 1 200px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.camino{border-left:2px dashed var(--line-2);padding:2px 0 2px 10px}
+.nodo.sub{grid-template-columns:28px 118px minmax(0,1fr)}
+.destino{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:0 0 14px}
+@media(max-width:980px){
+  .regla{margin-left:0}
+  .mapa > .regla::before,.mapa > .regla::after{display:none}
+  .regla-cuerpo{margin-left:0}
+  .nodo{grid-template-columns:16px 24px minmax(0,1fr)}
+  .nodo .tipo{display:none}
+  .par,.dos-campos{grid-template-columns:1fr}
+}
+
 /* Resultado */
 .devolver{display:grid;grid-template-columns:22px minmax(0,1fr) minmax(0,170px);gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
 .devolver.cab{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;padding-top:0}
@@ -229,13 +274,14 @@ const PLACEHOLDER = { tipo: 'capturar', nombre: '01-inicio' };
 const SIN_LOGIN = { url_coincide: '.' };
 const RESERVADOS = ['modo', 'callback_url', 'forzar', 'prioridad'];
 const SECTORES = [['salud', 'Salud'], ['banca', 'Banca'], ['seguros', 'Seguros'], ['gobierno', 'Gobierno'], ['logistica', 'Logística'], ['comercio', 'Comercio'], ['otro', 'Otro']];
-const DESCR = { ir: 'Abrir URL', clic: 'Clic', escribir: 'Escribir', seleccionar: 'Elegir opción', presionar: 'Tecla', esperar: 'Esperar', leer: 'Leer valor', leer_lista: 'Leer lista', leer_tabla: 'Leer tabla', leer_lineas: 'Leer líneas', capturar: 'Captura', asignar: 'Asignar', agregar: 'Agregar', buscar: 'Buscar', transformar: 'Transformar', elegir: 'Elegir', decidir: 'Decidir', si: 'Si aparece', para_cada: 'Para cada', error: 'Error', fin: 'Fin' };
+const DESCR = { ir: 'Abrir URL', clic: 'Clic', escribir: 'Escribir', seleccionar: 'Elegir opción', presionar: 'Tecla', esperar: 'Esperar', leer: 'Leer valor', leer_lista: 'Leer lista', leer_tabla: 'Leer tabla', leer_lineas: 'Leer líneas', capturar: 'Captura', asignar: 'Asignar', agregar: 'Agregar', buscar: 'Buscar', transformar: 'Transformar', elegir: 'Elegir', decidir: 'Decidir', si: 'Condición', para_cada: 'Para cada', error: 'Error', fin: 'Fin' };
 const LECTURAS = new Set(['leer', 'leer_lista', 'leer_tabla', 'leer_lineas']);
 const PASOS = [
   { id: 'cliente', titulo: 'Cliente y códigos' },
   { id: 'portal', titulo: 'Portal y acceso' },
   { id: 'datos', titulo: 'Datos de entrada' },
   { id: 'grabar', titulo: 'Grabar los pasos' },
+  { id: 'condiciones', titulo: 'Condiciones' },
   { id: 'resultado', titulo: 'Qué devuelve' },
   { id: 'probar', titulo: 'Probar' },
   { id: 'entregar', titulo: 'Publicar y entregar' },
@@ -322,6 +368,7 @@ const HECHO = {
   portal: () => !!(ST.def && ST.meta),
   datos: () => !!(ST.def && ST.meta) && ((ST.def.parametros || []).length > 0 || tienePasosReales() || !!ST.visto.datos),
   grabar: () => !!ST.meta && tienePasosReales(),
+  condiciones: () => !!ST.meta && tienePasosReales() && (!!ST.visto.condiciones || !!ST.def.resultado || ST.def.pasos.some((p) => p.tipo === 'si')),
   resultado: () => !!ST.meta && tienePasosReales() && (!!ST.def.resultado || !!ST.visto.resultado),
   probar: () => !!ST.meta && (!!ST.pruebaOk || !!ST.visto.probar),
   entregar: () => !!ST.meta && ST.meta.estado === 'publicado' && !ST.meta.tieneBorrador && habilitadoPara(ST.cliente && ST.cliente.slug),
@@ -374,6 +421,7 @@ function pintarRail() {
     portal: d && ST.meta ? d.titulo : 'Qué hace el robot',
     datos: d && ST.meta ? plural((d.parametros || []).length, 'dato', 'datos') : 'Lo que envía el cliente',
     grabar: tienePasosReales() ? plural(contar(d.pasos), 'paso', 'pasos') : 'Clics y lecturas',
+    condiciones: tienePasosReales() && reglas().length ? plural(reglas().length, 'condición', 'condiciones') : 'Otros caminos',
     resultado: d && d.resultado ? plural(Object.keys(d.resultado).length, 'campo', 'campos') : 'Valores de la pantalla',
     probar: ST.pruebaOk ? 'Prueba correcta' : 'Con el robot real',
     entregar: ST.meta && ST.meta.estado === 'publicado' ? `v${ST.meta.version}${habilitadoPara(ST.cliente && ST.cliente.slug) ? ' · habilitada' : ''}` : 'Clave y código',
@@ -391,6 +439,7 @@ function pintarRail() {
 function irA(i) {
   ST.timers.forEach(clearInterval); ST.timers = [];
   ST.i = i; mensaje('');
+  if (PASOS[i].id !== 'grabar') ST.destino = null;
   const p = PASOS[i], v = VISTAS[p.id];
   $('#v-eyebrow').textContent = `Paso ${i + 1} de ${PASOS.length}`;
   $('#v-titulo').textContent = typeof v.titulo === 'function' ? v.titulo() : v.titulo;
@@ -411,6 +460,7 @@ function sincronizarUrl() {
   history.replaceState(null, '', '/admin/nueva?' + q);
 }
 $('#btn-atras').onclick = () => irA(Math.max(0, ST.i - 1));
+const irAId = (id) => irA(PASOS.findIndex((p) => p.id === id));
 $('#btn-continuar').onclick = async () => {
   const v = VISTAS[PASOS[ST.i].id], b = $('#btn-continuar');
   b.disabled = true; mensaje('');
@@ -719,7 +769,7 @@ VISTAS.grabar = {
   html() {
     const vals = valoresDePrueba();
     const chips = Object.entries(vals).map(([k, v]) => `<span class="chip"><span class="mono">${esc(k)}</span> ${esc(v)}</span>`).join('');
-    return `<div id="gr-pc"></div>
+    return `${ST.destino ? htmlDestino() : ''}<div id="gr-pc"></div>
       <div class="dos">
         <div class="card">
           <h3>Cómo grabar</h3>
@@ -752,6 +802,8 @@ VISTAS.grabar = {
     pintarPc();
     ST.timers.push(setInterval(() => api('/estado').then((e) => { ST.workers = e.workers || []; pintarPc(); }).catch(() => {}), 15000));
     $('#gr-iniciar').onclick = iniciarGrabacion;
+    const cancelarDestino = $('#gr-cancelar-destino');
+    if (cancelarDestino) cancelarDestino.onclick = () => { ST.destino = null; irAId('condiciones'); };
     pintarActuales();
     if (ST.gr && ST.gr.flujo === ST.def.nombre && !ST.gr.aplicada && !ST.gr.descartada) seguirGrabacion(ST.gr.id);
     else buscarGrabacionActiva();
@@ -824,8 +876,8 @@ function pintarGrabacion() {
   if (G.descartada || G.aplicada) { box.innerHTML = ''; return; }
   const activa = g.estado === 'solicitada' || g.estado === 'grabando';
   const etq = { solicitada: 'Esperando a que un robot abra la ventana…', grabando: `Grabando en ${g.portal}`, terminada: 'Grabación terminada', cancelada: 'Grabación cancelada', fallida: 'La grabación falló' }[g.estado] || g.estado;
-  const login = G.moverLogin ? rangoLogin(G.pasos, G.excluidos) : null;
-  const hayLogin = !!rangoLogin(G.pasos, G.excluidos);
+  const login = G.moverLogin && !ST.destino ? rangoLogin(G.pasos, G.excluidos) : null;
+  const hayLogin = !ST.destino && !!rangoLogin(G.pasos, G.excluidos);
   const filas = G.pasos.map((p, i) => `<div class="lp${login && login.has(i) ? ' login' : ''}${G.excluidos.has(i) ? ' fuera' : ''}"><input type="checkbox" data-i="${i}"${G.excluidos.has(i) ? '' : ' checked'} aria-label="Incluir paso ${i + 1}"><span class="num">${i + 1}</span><span class="tipo${LECTURAS.has(p.tipo) ? ' leer' : ''}">${esc(DESCR[p.tipo] || p.tipo)}</span><span class="tx" title="${esc(textoPaso(p))}">${esc(textoPaso(p))}${p.tipo === 'escribir' ? `<span class="mono val">${esc(p.valor)}</span>` : ''}</span>${activa ? `<button type="button" class="ghost mini" data-q="${i}" title="Quitar de la grabación" aria-label="Quitar">✕</button>` : '<span></span>'}</div>`).join('');
   const lista = $('#gr-lista'), abajo = !lista || lista.scrollTop + lista.clientHeight >= lista.scrollHeight - 30;
   box.innerHTML = `<div class="card">
@@ -835,8 +887,8 @@ function pintarGrabacion() {
       <div class="lista-pasos" id="gr-lista">${filas || `<p class="vacio">${activa ? 'Los pasos aparecen aquí a medida que actúa en la ventana del portal.' : 'La grabación no tiene pasos.'}</p>`}</div>
       ${!activa && G.pasos.length ? `<div class="gr-fin">
         ${hayLogin ? `<label class="linea-check"><input type="checkbox" id="gr-login"${G.moverLogin ? ' checked' : ''}><span>Usar los pasos resaltados como <b>inicio de sesión automático</b>: el robot los hace solo cuando no hay sesión. ${esSinLogin(ST.def) ? '<b>Atención:</b> la automatización está marcada "Sin inicio de sesión", así que ese login nunca se ejecutaría. En "Portal y acceso" elija "Con usuario y contraseña" e indique el texto que se ve con la sesión iniciada.' : `Confirme en "Portal y acceso" el texto que se ve con la sesión iniciada (ahora: "${esc((ST.def.sesion.valida_si || {}).texto_visible || 'condición avanzada')}").`}</span></label>` : ''}
-        ${tienePasosReales() ? `<div class="segmento" id="gr-modo"><button type="button" data-m="reemplazar">Reemplazar los ${contar(ST.def.pasos)} pasos guardados</button><button type="button" data-m="agregar">Añadir al final</button></div>` : ''}
-        <div class="acciones" style="margin:0"><button type="button" id="gr-usar">Usar estos pasos</button><button type="button" class="sec" id="gr-otra">Grabar de nuevo</button><button type="button" class="ghost" id="gr-descartar">Descartar</button></div>
+        ${tienePasosReales() && !ST.destino ? `<div class="segmento" id="gr-modo"><button type="button" data-m="reemplazar">Reemplazar los ${contar(ST.def.pasos)} pasos guardados</button><button type="button" data-m="agregar">Añadir al final</button></div>` : ''}
+        <div class="acciones" style="margin:0"><button type="button" id="gr-usar">${ST.destino ? 'Usar como camino de la condición' : 'Usar estos pasos'}</button><button type="button" class="sec" id="gr-otra">Grabar de nuevo</button><button type="button" class="ghost" id="gr-descartar">Descartar</button></div>
       </div>` : ''}
     </div>`;
   const nueva = $('#gr-lista'); if (nueva && activa && abajo) nueva.scrollTop = nueva.scrollHeight;
@@ -851,6 +903,7 @@ function pintarGrabacion() {
   const otra = $('#gr-otra'); if (otra) otra.onclick = () => { G.descartada = true; G.pendiente = false; pintarGrabacion(); iniciarGrabacion(); };
 }
 async function aplicarGrabacion() {
+  if (ST.destino) return aplicarACamino();
   const G = ST.gr;
   const login = G.moverLogin ? rangoLogin(G.pasos, G.excluidos) : null;
   const deLogin = [], consulta = [];
@@ -883,6 +936,297 @@ function pintarActuales() {
     </div>`;
 }
 
+VISTAS.condiciones = {
+  titulo: '¿Qué hace el robot cuando algo cambia?',
+  lead: 'Los pasos se siguen en orden. Aquí se añaden los otros caminos: una tabla sin resultados, un mensaje del portal o un valor que cambia lo que hay que hacer. Si no hace falta ninguno, continúe.',
+  html() {
+    const tablas = lecturasDeLista();
+    const hayValores = variablesLeidas(ST.def.pasos).length > 0 || (ST.def.parametros || []).length > 0;
+    return `<div class="card casos">
+        <h3>Casos frecuentes</h3>
+        <div class="rapidos" style="margin:0">
+          <button type="button" class="mini sec" data-caso="tabla"${tablas.length ? '' : ' disabled title="Primero lea una tabla o lista al grabar (Alt + Shift + clic)"'}>Tabla sin resultados</button>
+          <button type="button" class="mini sec" data-caso="mensaje">El portal muestra un mensaje</button>
+          <button type="button" class="mini sec" data-caso="valor"${hayValores ? '' : ' disabled title="No hay datos de entrada ni valores leídos"'}>Según un valor</button>
+        </div>
+        <p class="ayuda">También puede poner una condición en cualquier punto: pase el mouse entre dos pasos del mapa y use <b>＋ Condición aquí</b>.</p>
+      </div>
+      <div class="card mapa" id="cd-mapa"></div>
+      <p class="ayuda" id="cd-estado" aria-live="polite"></p>`;
+  },
+  montar() {
+    $$('[data-caso]').forEach((b) => (b.onclick = () => agregarCaso(b.dataset.caso)));
+    pintarMapa();
+  },
+  async continuar() {
+    const error = validarReglas();
+    if (error) throw new Error(error);
+    clearTimeout(ST.autoguardado);
+    await guardarDef();
+    marcarVisto('condiciones');
+    return true;
+  },
+};
+
+const OPS = [['igual', 'es igual a'], ['distinto', 'es distinto de'], ['contiene', 'contiene'], ['vacio', 'está vacío o sin resultados'], ['no_vacio', 'tiene algún valor'], ['mayor', 'es mayor que'], ['menor', 'es menor que']];
+const OPS_TITULO = { igual: '=', distinto: '≠', contiene: 'contiene', vacio: 'está vacío', no_vacio: 'tiene valor', mayor: '>', menor: '<' };
+const SIN_VALOR = new Set(['vacio', 'no_vacio']);
+const MODELOS = new WeakMap();
+const reglas = () => (ST.def && ST.def.pasos ? ST.def.pasos.filter((p) => p.tipo === 'si') : []);
+const opciones = (lista, actual) => lista.map(([v, t]) => `<option value="${esc(v)}"${String(v) === String(actual) ? ' selected' : ''}>${esc(t)}</option>`).join('');
+const textoValor = (v) => (typeof v === 'string' ? v : v === undefined ? '' : JSON.stringify(v));
+const lecturasDeLista = () => ST.def.pasos.map((p, i) => ({ p, i })).filter(({ p }) => (p.tipo === 'leer_tabla' || p.tipo === 'leer_lista') && p.guardar_como);
+
+/** Interpreta un paso `si` de nivel superior como regla editable; lo que no encaja se muestra como avanzado y se conserva. */
+function modelo(p) {
+  if (MODELOS.has(p)) return MODELOS.get(p);
+  const c = p.condicion || {};
+  const m = {};
+  if (c.variable !== undefined && c.op) Object.assign(m, { si: 'valor', variable: c.variable, op: c.op, valor: textoValor(c.valor) });
+  else if (c.texto_visible !== undefined) Object.assign(m, { si: 'texto', texto: c.texto_visible });
+  else if (c.no && c.no.texto_visible !== undefined) Object.assign(m, { si: 'sin_texto', texto: c.no.texto_visible });
+  else if (c.existe) m.si = 'elemento';
+  else if (c.no_existe) m.si = 'sin_elemento';
+  else m.si = 'avanzada';
+  const e = p.entonces || [];
+  const soloAsignar = (l) => l.every((x) => x.tipo === 'asignar');
+  const pares = (l) => l.map((x) => [x.variable, textoValor(x.valor)]);
+  if (!e.length) m.accion = 'nada';
+  else if (e.length === 1 && e[0].tipo === 'error') Object.assign(m, { accion: 'error', codigo: e[0].codigo, mensaje: e[0].mensaje });
+  else if (e[e.length - 1].tipo === 'fin' && soloAsignar(e.slice(0, -1))) Object.assign(m, { accion: 'terminar', pares: pares(e.slice(0, -1)) });
+  else if (soloAsignar(e)) Object.assign(m, { accion: 'asignar', pares: pares(e) });
+  else {
+    const terminar = e[e.length - 1].tipo === 'fin';
+    Object.assign(m, { accion: 'pasos', camino: terminar ? e.slice(0, -1) : e.slice(), terminar });
+  }
+  MODELOS.set(p, m);
+  return m;
+}
+
+/** Escribe la regla en el paso `si` (condición, pasos de "entonces" y título). */
+function escribirRegla(p, m) {
+  if (m.si === 'valor') p.condicion = SIN_VALOR.has(m.op) ? { variable: m.variable || '', op: m.op } : { variable: m.variable || '', op: m.op || 'igual', valor: m.valor ?? '' };
+  else if (m.si === 'texto') p.condicion = { texto_visible: m.texto || '', espera_ms: 3000 };
+  else if (m.si === 'sin_texto') p.condicion = { no: { texto_visible: m.texto || '', espera_ms: 3000 } };
+  const asignaciones = (m.pares || []).filter(([k]) => String(k || '').trim()).map(([k, v]) => ({ tipo: 'asignar', variable: String(k).trim(), valor: v ?? '' }));
+  if (m.accion === 'terminar') p.entonces = [...asignaciones, { tipo: 'fin' }];
+  else if (m.accion === 'asignar') p.entonces = asignaciones;
+  else if (m.accion === 'error') p.entonces = [{ tipo: 'error', codigo: m.codigo || '', mensaje: m.mensaje || '', clase: 'negocio' }];
+  else if (m.accion === 'pasos') p.entonces = m.terminar ? [...(m.camino || []), { tipo: 'fin' }] : [...(m.camino || [])];
+  else if (m.accion === 'nada') p.entonces = [];
+  if (m.si === 'valor') p.titulo = `Si ${m.variable || '…'} ${OPS_TITULO[m.op] || m.op}${SIN_VALOR.has(m.op) ? '' : ` "${m.valor ?? ''}"`}`;
+  else if (m.si === 'texto') p.titulo = `Si aparece "${m.texto || '…'}"`;
+  else if (m.si === 'sin_texto') p.titulo = `Si no aparece "${m.texto || '…'}"`;
+}
+
+function validarReglas() {
+  const lista = reglas();
+  for (let k = 0; k < lista.length; k++) {
+    const m = modelo(lista[k]), n = `Condición ${k + 1}`;
+    if (m.si === 'valor' && !m.variable) return `${n}: elija el dato que se compara.`;
+    if ((m.si === 'texto' || m.si === 'sin_texto') && !String(m.texto || '').trim()) return `${n}: escriba el texto que se busca en la pantalla.`;
+    if (m.accion === 'nada') return `${n}: elija qué hace el robot.`;
+    if (m.accion === 'terminar' || m.accion === 'asignar') {
+      const llenos = (m.pares || []).filter(([c]) => String(c || '').trim());
+      if (m.accion === 'asignar' && !llenos.length) return `${n}: escriba el nombre del valor que se guarda.`;
+      const malo = llenos.find(([c]) => !/^[A-Za-z_][A-Za-z0-9_]*$/.test(String(c).trim()));
+      if (malo) return `${n}: "${malo[0]}" no sirve como nombre; use letras, números y guion bajo.`;
+    }
+    if (m.accion === 'error' && (!m.codigo || !String(m.mensaje || '').trim())) return `${n}: escriba el código y el mensaje del error.`;
+    if (m.accion === 'pasos' && !(m.camino || []).length) return `${n}: grabe los pasos de este camino o elija otra acción.`;
+  }
+  return null;
+}
+
+/** Guarda el borrador poco después de cada cambio, si las condiciones están completas. */
+function programarGuardado() {
+  clearTimeout(ST.autoguardado);
+  const error = validarReglas();
+  const estado = $('#cd-estado');
+  if (estado) estado.textContent = error ? `Sin guardar: ${error}` : 'Guardando…';
+  if (error) return;
+  ST.autoguardado = setTimeout(async () => {
+    try { await guardarDef(); const e = $('#cd-estado'); if (e) e.textContent = 'Cambios guardados en el borrador.'; pintarRail(); }
+    catch (err) { const e = $('#cd-estado'); if (e) e.textContent = 'No se pudo guardar: ' + err.message; }
+  }, 900);
+}
+
+function pintarMapa() {
+  const box = $('#cd-mapa'); if (!box) return;
+  const pasos = ST.def.pasos;
+  const login = (ST.def.sesion && ST.def.sesion.login) || [];
+  let html = `<div class="nodo extremo"><span class="punto"></span><span class="tx">Abre <span class="mono">${esc(ST.def.url_inicio)}</span>${login.length ? ` e inicia sesión si hace falta (${plural(login.length, 'paso', 'pasos')})` : ''}</span></div>`;
+  html += insertador(0);
+  pasos.forEach((p, i) => { html += p.tipo === 'si' ? htmlRegla(p, i) : htmlNodo(p, i); html += insertador(i + 1); });
+  html += '<div class="nodo extremo"><span class="punto"></span><span class="tx">Termina y devuelve el resultado</span></div>';
+  box.innerHTML = html;
+  montarMapa(box);
+}
+const insertador = (pos) => `<div class="insertar"><button type="button" class="mini ghost" data-pos="${pos}">＋ Condición aquí</button></div>`;
+const htmlNodo = (p, i) => `<div class="nodo"><span class="punto"></span><span class="num">${i + 1}</span><span class="tipo${LECTURAS.has(p.tipo) ? ' leer' : ''}">${esc(DESCR[p.tipo] || p.tipo)}</span><span class="tx" title="${esc(textoPaso(p))}">${esc(textoPaso(p))}${p.guardar_como ? `<span class="mono val">→ ${esc(p.guardar_como)}</span>` : ''}</span></div>`;
+
+function htmlRegla(p, i) {
+  const m = modelo(p);
+  const n = reglas().indexOf(p) + 1;
+  const leidas = variablesLeidas(ST.def.pasos.slice(0, i));
+  const entradas = (ST.def.parametros || []).map((x) => [x.nombre, `${x.nombre} · ${x.etiqueta}`]);
+  const conocidas = new Set([...entradas.map(([v]) => v), ...leidas.map((v) => v.variable)]);
+  const selVar = `<select data-f="variable" aria-label="Dato"><option value="">Elija un dato…</option>${entradas.length ? `<optgroup label="Datos de entrada">${opciones(entradas, m.variable)}</optgroup>` : ''}${leidas.length ? `<optgroup label="Leídos antes de este punto">${opciones(leidas.map((v) => [v.variable, `${v.variable} · ${v.titulo}`]), m.variable)}</optgroup>` : ''}${m.variable && !conocidas.has(m.variable) ? `<option value="${esc(m.variable)}" selected>${esc(m.variable)} (se lee después de este punto)</option>` : ''}</select>`;
+  let cond;
+  if (m.si === 'valor') cond = `${selVar}<select data-f="op" aria-label="Comparación">${opciones(OPS, m.op)}</select>${SIN_VALOR.has(m.op) ? '' : `<input data-f="valor" value="${esc(m.valor)}" placeholder="valor" aria-label="Valor" autocomplete="off">`}`;
+  else if (m.si === 'texto' || m.si === 'sin_texto') cond = `<input data-f="texto" value="${esc(m.texto)}" placeholder="Ej. No se encontraron resultados" aria-label="Texto en pantalla" autocomplete="off">`;
+  else if (m.si === 'elemento' || m.si === 'sin_elemento') cond = `<span class="fijo">${esc(objTxt(p.condicion.existe || p.condicion.no_existe))}</span>`;
+  else cond = `<span class="fijo mono">${esc(JSON.stringify(p.condicion))}</span>`;
+  const tiposSi = [['valor', 'un dato…'], ['texto', 'aparece el texto'], ['sin_texto', 'no aparece el texto']];
+  if (m.si === 'elemento') tiposSi.push(['elemento', 'aparece el elemento']);
+  if (m.si === 'sin_elemento') tiposSi.push(['sin_elemento', 'no aparece el elemento']);
+  if (m.si === 'avanzada') tiposSi.push(['avanzada', 'condición avanzada']);
+  const acciones = [['terminar', 'terminar y devolver'], ['error', 'terminar con error'], ['asignar', 'guardar un valor y seguir'], ['pasos', 'hacer otros pasos']];
+  if (m.accion === 'nada') acciones.unshift(['nada', 'elija qué hacer…']);
+  let cuerpo = '';
+  if (m.accion === 'terminar' || m.accion === 'asignar') {
+    const pares = m.pares && m.pares.length ? m.pares : [['', '']];
+    cuerpo = `<div class="pares">${pares.map(([k, v], j) => `<div class="par" data-j="${j}"><input class="mono" data-f="clave" value="${esc(k)}" placeholder="mensaje" aria-label="Nombre del valor" autocomplete="off"><span>=</span><input data-f="valor_par" value="${esc(v)}" placeholder="Sin resultados" aria-label="Valor" autocomplete="off"><button type="button" class="ghost mini" data-quitar-par="${j}" aria-label="Quitar valor">✕</button></div>`).join('')}</div>
+      <button type="button" class="mini ghost" data-agregar-par>＋ Otro valor</button>
+      <p class="ayuda">${m.accion === 'terminar' ? 'La consulta termina como completada; estos valores se pueden devolver en "Qué devuelve".' : 'Guarda los valores y sigue con el paso siguiente.'} Para copiar un dato leído escriba <span class="mono">{{nombre_del_dato}}</span>.</p>`;
+  } else if (m.accion === 'error') {
+    cuerpo = `<div class="dos-campos"><input class="mono" data-f="codigo" value="${esc(m.codigo)}" placeholder="PACIENTE_NO_ENCONTRADO" aria-label="Código del error" autocomplete="off"><input data-f="mensaje" value="${esc(m.mensaje)}" placeholder="El paciente no existe en el portal" aria-label="Mensaje del error" autocomplete="off"></div>
+      <p class="ayuda">La consulta termina como fallida, sin reintentos, y la API devuelve este código y mensaje en <span class="mono">error</span>.</p>`;
+  } else if (m.accion === 'pasos') {
+    const camino = m.camino || [];
+    cuerpo = `<div class="camino">${camino.length ? camino.map((x, j) => `<div class="nodo sub"><span class="num">${j + 1}</span><span class="tipo${LECTURAS.has(x.tipo) ? ' leer' : ''}">${esc(DESCR[x.tipo] || x.tipo)}</span><span class="tx" title="${esc(textoPaso(x))}">${esc(textoPaso(x))}${x.guardar_como ? `<span class="mono val">→ ${esc(x.guardar_como)}</span>` : ''}</span></div>`).join('') : '<p class="ayuda" style="margin:0">Todavía no tiene pasos: grábelos desde el punto donde empieza este camino.</p>'}</div>
+      <div class="acciones" style="margin-top:8px"><button type="button" class="mini" data-grabar-camino>⏺ ${camino.length ? 'Volver a grabar' : 'Grabar'} este camino</button><label class="linea-check"><input type="checkbox" data-f="terminar"${m.terminar ? ' checked' : ''}> Terminar al acabar este camino</label></div>`;
+  }
+  const sino = (p.si_no || []).length ? `hace ${plural(p.si_no.length, 'paso', 'pasos')} definidos en el editor avanzado y sigue` : 'sigue con el paso siguiente';
+  return `<div class="regla" data-i="${i}">
+      <div class="regla-cab"><b>Condición ${n}</b><span class="ayuda" style="margin:0">se revisa ${i === 0 ? 'al empezar' : `después del paso ${i}`}</span><span class="der"><button type="button" class="ghost mini" data-mover="-1" title="Subir" aria-label="Subir"${i === 0 ? ' disabled' : ''}>↑</button><button type="button" class="ghost mini" data-mover="1" title="Bajar" aria-label="Bajar"${i === ST.def.pasos.length - 1 ? ' disabled' : ''}>↓</button><button type="button" class="ghost mini peligro-txt" data-quitar-regla title="Quitar condición" aria-label="Quitar condición">✕</button></span></div>
+      <div class="regla-fila"><span class="kw">Si</span><select data-f="si" aria-label="Tipo de condición">${opciones(tiposSi, m.si)}</select>${cond}</div>
+      <div class="regla-fila"><span class="kw">Entonces</span><select data-f="accion" aria-label="Qué hacer">${opciones(acciones, m.accion)}</select></div>
+      ${cuerpo ? `<div class="regla-cuerpo">${cuerpo}</div>` : ''}
+      <div class="regla-fila"><span class="kw">Si no</span><span class="ayuda" style="margin:0">${sino}</span></div>
+    </div>`;
+}
+
+function montarMapa(box) {
+  $$('.insertar [data-pos]', box).forEach((b) => (b.onclick = () => nuevaRegla(Number(b.dataset.pos), { si: 'valor', variable: '', op: 'igual', valor: '', accion: 'terminar', pares: [['mensaje', '']] })));
+  $$('.regla', box).forEach((card) => {
+    const i = Number(card.dataset.i), p = ST.def.pasos[i], m = modelo(p);
+    const cambio = (repintar) => { escribirRegla(p, m); programarGuardado(); if (repintar) { pintarMapa(); pintarRail(); } };
+    card.querySelectorAll('[data-f]').forEach((el) => {
+      const f = el.dataset.f;
+      if (el.tagName === 'SELECT' || el.type === 'checkbox') {
+        el.onchange = () => {
+          if (f === 'si') {
+            m.si = el.value;
+            if (m.si === 'valor') Object.assign(m, { variable: m.variable || '', op: m.op || 'igual', valor: m.valor || '' });
+            else m.texto = m.texto || '';
+            return cambio(true);
+          }
+          if (f === 'accion') {
+            if (m.accion === 'pasos' && (m.camino || []).length && !confirm('Este camino tiene pasos grabados que se perderán. ¿Cambiar la acción?')) { el.value = m.accion; return; }
+            m.accion = el.value;
+            if ((m.accion === 'terminar' || m.accion === 'asignar') && !(m.pares || []).length) m.pares = [['mensaje', '']];
+            if (m.accion === 'error') { m.codigo = m.codigo || ''; m.mensaje = m.mensaje || ''; }
+            if (m.accion === 'pasos') { m.camino = m.camino || []; if (m.terminar === undefined) m.terminar = true; }
+            return cambio(true);
+          }
+          if (f === 'terminar') { m.terminar = el.checked; return cambio(false); }
+          m[f] = el.value;
+          return cambio(f === 'op');
+        };
+      } else {
+        el.oninput = () => {
+          if (f === 'clave' || f === 'valor_par') {
+            const j = Number(el.closest('.par').dataset.j);
+            if (!(m.pares || []).length) m.pares = [['', '']];
+            m.pares[j][f === 'clave' ? 0 : 1] = el.value;
+          } else m[f] = el.value;
+          cambio(false);
+        };
+      }
+    });
+    const codigo = card.querySelector('[data-f=codigo]');
+    if (codigo) codigo.onchange = () => { codigo.value = codigo.value.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, ''); m.codigo = codigo.value; cambio(false); };
+    const agregarPar = card.querySelector('[data-agregar-par]');
+    if (agregarPar) agregarPar.onclick = () => { m.pares = [...(m.pares || []), ['', '']]; cambio(true); };
+    card.querySelectorAll('[data-quitar-par]').forEach((b) => (b.onclick = () => { m.pares.splice(Number(b.dataset.quitarPar), 1); cambio(true); }));
+    card.querySelectorAll('[data-mover]').forEach((b) => (b.onclick = () => {
+      const j = i + Number(b.dataset.mover);
+      if (j < 0 || j >= ST.def.pasos.length) return;
+      [ST.def.pasos[i], ST.def.pasos[j]] = [ST.def.pasos[j], ST.def.pasos[i]];
+      programarGuardado(); pintarMapa();
+    }));
+    card.querySelector('[data-quitar-regla]').onclick = () => {
+      if (!confirm(`¿Quitar la condición ${reglas().indexOf(p) + 1}?`)) return;
+      ST.def.pasos.splice(i, 1);
+      programarGuardado(); pintarMapa(); pintarRail();
+    };
+    const grabarCamino = card.querySelector('[data-grabar-camino]');
+    if (grabarCamino) grabarCamino.onclick = () => { ST.destino = { indice: i }; irAId('grabar'); };
+  });
+}
+
+function nuevaRegla(pos, m) {
+  const p = { tipo: 'si', condicion: { texto_visible: '' }, entonces: [] };
+  MODELOS.set(p, m);
+  escribirRegla(p, m);
+  ST.def.pasos.splice(pos, 0, p);
+  pintarMapa(); pintarRail(); programarGuardado();
+  const card = $(`.regla[data-i="${pos}"]`);
+  if (card) {
+    card.scrollIntoView({ block: 'center' });
+    const vacio = [...card.querySelectorAll('input, select')].find((x) => !x.value && x.dataset.f !== 'valor_par');
+    if (vacio) vacio.focus();
+  }
+}
+
+function agregarCaso(tipo) {
+  const pasos = ST.def.pasos;
+  if (tipo === 'tabla') {
+    const t = lecturasDeLista().pop();
+    return nuevaRegla(t.i + 1, { si: 'valor', variable: t.p.guardar_como, op: 'vacio', valor: '', accion: 'terminar', pares: [['mensaje', 'Sin resultados']] });
+  }
+  if (tipo === 'mensaje') {
+    const primera = pasos.findIndex((p) => LECTURAS.has(p.tipo));
+    return nuevaRegla(primera < 0 ? pasos.length : primera, { si: 'texto', texto: '', accion: 'error', codigo: 'NO_ENCONTRADO', mensaje: '' });
+  }
+  const ultima = pasos.reduce((u, p, i) => (LECTURAS.has(p.tipo) ? i : u), -1);
+  const leidas = variablesLeidas(pasos.slice(0, ultima + 1));
+  const variable = leidas.length ? leidas[leidas.length - 1].variable : ((ST.def.parametros || [])[0] || {}).nombre || '';
+  return nuevaRegla(ultima + 1, { si: 'valor', variable, op: 'igual', valor: '', accion: 'asignar', pares: [['mensaje', '']] });
+}
+
+/** Aviso en "Grabar" cuando se graba el camino de una condición. */
+function htmlDestino() {
+  const p = ST.def.pasos[ST.destino.indice];
+  const n = reglas().indexOf(p) + 1;
+  return `<div class="aviso destino"><span>Grabando el camino de la <b>condición ${n}</b>${p && p.titulo ? `: ${esc(p.titulo)}` : ''}. Use valores de prueba que lleven a ese caso. En la ventana del portal pause con <span class="tecla">Ctrl</span><span class="tecla">Shift</span><span class="tecla">P</span> mientras llega al punto donde empieza el camino y reanude para grabar solo sus pasos.</span><button type="button" class="mini sec" id="gr-cancelar-destino">Volver a Condiciones</button></div>`;
+}
+
+async function aplicarACamino() {
+  const G = ST.gr;
+  const p = ST.def.pasos[ST.destino.indice];
+  if (!p || p.tipo !== 'si') { ST.destino = null; throw new Error('La condición ya no existe; vuelva a Condiciones.'); }
+  const camino = G.pasos.filter((_, i) => !G.excluidos.has(i)).map(({ alternativas, ...limpio }) => limpio);
+  if (!camino.length) throw new Error('No hay pasos marcados.');
+  const m = modelo(p);
+  const usados = variablesDe(ST.def.pasos);
+  variablesDe(m.accion === 'pasos' ? m.camino : []).forEach((v) => usados.delete(v));
+  renombrarChoques(camino, usados);
+  const antes = { accion: m.accion, camino: m.camino, terminar: m.terminar, entonces: p.entonces };
+  Object.assign(m, { accion: 'pasos', camino, terminar: m.terminar ?? true });
+  escribirRegla(p, m);
+  const credsAntes = ST.def.credenciales_requeridas;
+  ST.def.credenciales_requeridas = [...new Set([...credencialesUsadas(ST.def.pasos), ...credencialesUsadas(ST.def.sesion.login)])];
+  try { await guardarDef(); }
+  catch (e) { Object.assign(m, antes); p.entonces = antes.entonces; ST.def.credenciales_requeridas = credsAntes; throw e; }
+  G.aplicada = true; G.pendiente = false;
+  const n = reglas().indexOf(p) + 1;
+  ST.destino = null;
+  irAId('condiciones');
+  mensaje(`Camino de la condición ${n} guardado con ${plural(camino.length, 'paso', 'pasos')}.`, 'exito');
+}
+
 VISTAS.resultado = {
   titulo: '¿Qué valores devuelve la API?',
   lead: 'Elija, de lo que el robot lee en pantalla, qué va en la respuesta y con qué nombre. Es lo que recibirá el sistema del cliente.',
@@ -902,7 +1246,7 @@ VISTAS.resultado = {
   },
   montar() {
     const volver = $('#rs-grabar');
-    if (volver) { volver.onclick = () => irA(3); $('#btn-continuar').textContent = 'Continuar sin valores →'; return; }
+    if (volver) { volver.onclick = () => irAId('grabar'); $('#btn-continuar').textContent = 'Continuar sin valores →'; return; }
     $$('[data-var],[data-clave]').forEach((i) => (i.oninput = i.onchange = pintarVistaResultado));
     pintarVistaResultado();
   },
@@ -1035,7 +1379,7 @@ VISTAS.entregar = {
         : creds.length ? ['ok', `Credenciales de <span class="mono">${esc(d.portal)}</span> guardadas (${creds.map(esc).join(', ')})`]
         : ['warn', `Sin credenciales en <span class="mono">${esc(d.portal)}</span>: el robot usará la sesión guardada y, si vence, habrá que iniciar sesión a mano en el PC.`],
       ['ok', (d.parametros || []).length ? `${d.parametros.length} datos de entrada: <span class="mono">${d.parametros.map((p) => esc(p.nombre)).join(', ')}</span>` : 'Sin datos de entrada'],
-      ['ok', `${contar(d.pasos)} pasos${login.length ? ` y ${login.length} de inicio de sesión automático` : ''}`],
+      ['ok', `${contar(d.pasos)} pasos${login.length ? ` y ${login.length} de inicio de sesión automático` : ''}${reglas().length ? `, con ${plural(reglas().length, 'condición', 'condiciones')}` : ''}`],
       res.length ? ['ok', `Devuelve <span class="mono">${res.map(esc).join(', ')}</span>`] : ['warn', 'Devuelve todas las variables leídas, sin nombres elegidos'],
       ST.pruebaOk ? ['ok', `Prueba correcta ${hace(ST.pruebaOk.creado)}`] : ['warn', 'Sin prueba correcta de este borrador'],
     ];

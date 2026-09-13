@@ -209,15 +209,16 @@ Entrega 2 del grabador: **pausar y reanudar** (botón en la barra, Ctrl+Shift+P 
 
 ### Asistente de nueva automatización
 
-`/admin/nueva` guía el alta completa en siete pasos: primero el cliente y sus códigos, después el flujo. Cada paso se guarda como borrador al continuar y el enlace (`?c=<cliente>&f=<flujo>&paso=<paso>`) permite retomarlo; desde el editor de flujos, "Continuar en el asistente" abre el mismo punto.
+`/admin/nueva` guía el alta completa en ocho pasos: primero el cliente y sus códigos, después el flujo. Cada paso se guarda como borrador al continuar y el enlace (`?c=<cliente>&f=<flujo>&paso=<paso>`) permite retomarlo; desde el editor de flujos, "Continuar en el asistente" abre el mismo punto.
 
 1. **Cliente y códigos**: elegir o crear el cliente. El identificador se genera del nombre (sin la forma societaria: "Clínica Norte S.A.S." → `clinica-norte`) y la clave de API se muestra una sola vez al crearla o rotarla.
 2. **Portal y acceso**: qué hace el robot y la URL de inicio; el portal y el nombre técnico se deducen. Credenciales del cliente para ese portal (cifradas con la clave pública del worker) y el texto que confirma la sesión, o "sin inicio de sesión".
 3. **Datos de entrada**: parámetros con atajos (tipo y número de documento, fecha). Los valores de prueba viven solo en la pestaña del navegador (`sessionStorage`), no en el flujo.
 4. **Grabar**: indica si hay un robot con ventana conectado y sigue la grabación en vivo. Si detecta usuario y contraseña, propone moverlos a `sesion.login`; `credenciales_requeridas` se calcula a partir de los pasos.
-5. **Qué devuelve**: elige qué variables leídas van en `resultado` y con qué nombre.
-6. **Probar**: prueba con el robot real y bitácora en vivo; cuenta como correcta si terminó después del último cambio del borrador.
-7. **Publicar y entregar**: revisión (credenciales que faltan, valores `{{config.*}}` del cliente), publica, habilita para el cliente y entrega la URL, la clave y ejemplos en cURL, JavaScript y Python. Los ejemplos usan valores ficticios, nunca los de prueba.
+5. **Condiciones**: mapa del flujo con los otros caminos. Hay casos frecuentes de un clic (tabla sin resultados, el portal muestra un mensaje, según un valor) y "＋ Condición aquí" entre cualquier par de pasos. Cada condición es un paso `si` de nivel superior: *si* un dato (de entrada o leído antes de ese punto) es igual, distinto, contiene, está vacío, tiene valor, es mayor o menor, o si aparece o no un texto en pantalla; *entonces* terminar y devolver valores (`asignar` + `fin`), terminar con error de negocio (`error`, sin reintentos), guardar un valor y seguir, o hacer otros pasos. Los pasos de un camino se graban con "Grabar este camino" (se pausa con Ctrl+Shift+P hasta llegar al punto) y pueden terminar la consulta al acabar. Lo que no encaja en estas formas se muestra como condición avanzada y se conserva; el "si no" siempre sigue con el paso siguiente salvo que se defina en el editor avanzado. Los cambios se guardan solos cuando la condición está completa.
+6. **Qué devuelve**: elige qué variables leídas van en `resultado` y con qué nombre.
+7. **Probar**: prueba con el robot real y bitácora en vivo; cuenta como correcta si terminó después del último cambio del borrador.
+8. **Publicar y entregar**: revisión (credenciales que faltan, valores `{{config.*}}` del cliente), publica, habilita para el cliente y entrega la URL, la clave y ejemplos en cURL, JavaScript y Python. Los ejemplos usan valores ficticios, nunca los de prueba.
 
 La ficha del cliente (`/admin/clientes`) muestra los mismos códigos de integración para cada automatización habilitada y genera el identificador al escribir el nombre.
 
