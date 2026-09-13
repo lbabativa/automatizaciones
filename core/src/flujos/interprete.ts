@@ -88,8 +88,8 @@ export function escribirRuta(obj: Vars, ruta: string, valor: unknown): void {
   }
 }
 
-const PLANTILLA_COMPLETA = /^\{\{\s*([\w.-]+)\s*\}\}$/;
-const PLANTILLA_PARCIAL = /\{\{\s*([\w.-]+)\s*\}\}/g;
+const PLANTILLA_COMPLETA = /^\{\{\s*([\p{L}\p{N}_.-]+)\s*\}\}$/u;
+const PLANTILLA_PARCIAL = /\{\{\s*([\p{L}\p{N}_.-]+)\s*\}\}/gu;
 
 /**
  * Resuelve plantillas en cualquier valor. Un texto que es exactamente "{{ruta}}"

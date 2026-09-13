@@ -287,6 +287,26 @@ function variablesLeidas(pasos, out = []) {
   return out;
 }
 
+/** Todas las variables que escribe el flujo (lecturas, asignaciones), también dentro de condiciones. */
+function variablesDe(pasos, out = new Set()) {
+  for (const p of pasos || []) {
+    const v = p.guardar_como || (p.tipo === 'asignar' || p.tipo === 'transformar' ? p.variable : p.tipo === 'agregar' ? p.a : null);
+    if (v) out.add(v);
+    variablesDe(p.entonces, out); variablesDe(p.si_no, out); variablesDe(p.pasos, out);
+  }
+  return out;
+}
+/** Renombra con sufijo (_2, _3) las variables de pasos nuevos que chocan con las existentes. */
+function renombrarChoques(nuevos, usados) {
+  for (const p of nuevos) {
+    if (!p.guardar_como) continue;
+    const base = p.guardar_como;
+    let n = base;
+    for (let k = 2; usados.has(n); k++) n = `${base}_${k}`;
+    p.guardar_como = n; usados.add(n);
+  }
+}
+
 function valoresDePrueba() {
   const o = {};
   for (const p of (ST.def && ST.def.parametros) || []) {
@@ -840,6 +860,7 @@ async function aplicarGrabacion() {
     (login && login.has(i) ? deLogin : consulta).push(limpio);
   });
   if (!deLogin.length && !consulta.length) throw new Error('No hay pasos marcados.');
+  renombrarChoques([...deLogin, ...consulta], G.modo === 'agregar' && tienePasosReales() ? variablesDe(ST.def.pasos) : new Set());
   const antes = JSON.parse(JSON.stringify(ST.def));
   if (!tienePasosReales() || G.modo === 'reemplazar') ST.def.pasos = consulta.length ? consulta : [{ ...PLACEHOLDER }];
   else ST.def.pasos.push(...consulta);

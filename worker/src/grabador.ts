@@ -78,7 +78,7 @@ export const CODIGO_GRABADOR = `(() => {
       e.preventDefault(); e.stopPropagation();
       const etiqueta = etiquetaLectura(el);
       const s = sugerir(el);
-      const paso = etiqueta ? { tipo: 'leer', guardar_como: etiqueta.toLowerCase().replace(/[^a-z0-9áéíóúñ]+/g, '_').replace(/^_|_$/g, ''), etiqueta } : { tipo: 'leer', guardar_como: 'valor', objetivo: s[0] || { texto: limpiar(el.textContent).slice(0, 60), exacto: true } };
+      const paso = etiqueta ? { tipo: 'leer', guardar_como: etiqueta, etiqueta } : { tipo: 'leer', guardar_como: 'valor', objetivo: s[0] || { texto: limpiar(el.textContent).slice(0, 60), exacto: true } };
       paso.titulo = 'Leer ' + (etiqueta || limpiar(el.textContent).slice(0, 40));
       if (s.length) paso.alternativas = s.slice(0, 4);
       enviar(paso);
@@ -155,13 +155,27 @@ export const CODIGO_GRABADOR = `(() => {
 
 type PasoGrabado = Record<string, unknown> & { tipo: string };
 
+/** "Fecha de afiliación" → "fecha_de_afiliacion": sin tildes ni espacios, válido en {{plantillas}} y en la respuesta. */
+export function nombreVariable(texto: string): string {
+  const s = texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 40)
+    .replace(/_+$/, '');
+  if (!s) return 'valor';
+  return /^[a-z]/.test(s) ? s : `valor_${s}`;
+}
+
 /**
  * Sustituye valores de prueba por plantillas {{parametro}}, y usuario o contraseña del
  * cliente por {{credenciales.campo}}: un flujo grabado nunca guarda credenciales en claro.
  * Lo escrito en un campo de contraseña que no coincide con ninguna credencial también se
  * reemplaza por {{credenciales.password}}.
  */
-export function normalizarPaso(paso: PasoGrabado, parametros: Record<string, unknown>, credenciales: Record<string, string> = {}): PasoGrabado {
+export function normalizarPaso(paso: PasoGrabado, parametros: Record<string, unknown>, credenciales: Record<string, string> = {}, usados: Set<string> = new Set()): PasoGrabado {
   const p: PasoGrabado = { ...paso };
   const nombreDe = (valor: unknown) => Object.entries(parametros).find(([, v]) => v !== '' && v !== undefined && String(v) === String(valor))?.[0];
   const credencialDe = (valor: unknown) => Object.entries(credenciales).find(([, v]) => v !== '' && String(v) === String(valor))?.[0];
@@ -173,6 +187,14 @@ export function normalizarPaso(paso: PasoGrabado, parametros: Record<string, unk
     else if (n) p.valor = `{{${n}}}`;
   }
   delete p.sensible;
+  // Variable única y sin tildes: dos lecturas con la misma etiqueta (o sin ella) no se pisan.
+  if (typeof p.guardar_como === 'string') {
+    const base = nombreVariable(p.guardar_como);
+    let nombre = base;
+    for (let k = 2; usados.has(nombre); k++) nombre = `${base}_${k}`;
+    usados.add(nombre);
+    p.guardar_como = nombre;
+  }
   if (p.tipo === 'seleccionar') {
     const n = nombreDe(p.valor_opcion) ?? nombreDe(p.texto);
     if (n) {
@@ -236,7 +258,13 @@ export async function grabar(g: GrabacionDoc, log: (m: string) => void): Promise
         }
         return;
       }
-      const normal = normalizarPaso(paso, activa.parametros, activa.credenciales);
+      // Los nombres ya usados en esta grabación, para que cada lectura tenga su propia variable.
+      const usados = new Set<string>();
+      if (typeof paso.guardar_como === 'string') {
+        const doc = await Grabacion.findById(activa.id).select('pasos').lean<{ pasos?: Array<{ guardar_como?: string }> }>().catch(() => null);
+        for (const x of doc?.pasos ?? []) if (x.guardar_como) usados.add(x.guardar_como);
+      }
+      const normal = normalizarPaso(paso, activa.parametros, activa.credenciales, usados);
       activa.n++;
       await Grabacion.updateOne({ _id: activa.id }, { $push: { pasos: normal } }).catch(() => undefined);
       log(`grabación ${String(activa.id).slice(-6)}: paso ${activa.n} ${normal.tipo}${normal.titulo ? ` · ${normal.titulo}` : ''}`);

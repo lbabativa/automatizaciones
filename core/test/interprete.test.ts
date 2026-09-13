@@ -22,6 +22,7 @@ const urlPortal = pathToFileURL(resolve(aqui, 'portal-falso.html')).href;
 {
   const vars = { num_doc: '79', lista: [1, 2, 3], ficha: { estado: 'VIGENTE' } };
   assert.equal(plantilla('Doc {{num_doc}}', vars), 'Doc 79');
+  assert.equal(plantilla('{{fecha_de_afiliación}}', { 'fecha_de_afiliación': '2026-01-02' }), '2026-01-02', 'variables con tilde de flujos grabados antes');
   assert.deepEqual(plantilla('{{lista}}', vars), [1, 2, 3]);
   assert.equal(plantilla('{{lista.-1}}', vars), 3);
   assert.deepEqual(plantilla({ a: '{{ficha.estado}}', b: ['{{num_doc}}'] }, vars), { a: 'VIGENTE', b: ['79'] });

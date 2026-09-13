@@ -74,7 +74,8 @@ try {
   assert.deepEqual(continuar.objetivo, { rol: 'button', nombre: 'Continuar' });
   assert.equal(leer.tipo, 'leer');
   assert.equal(leer.etiqueta, 'Estado');
-  assert.equal(leer.guardar_como, 'estado');
+  assert.equal(leer.guardar_como, 'Estado', 'la página envía la etiqueta; el worker la convierte en variable');
+  assert.equal(normalizarPaso(leer as never, {}).guardar_como, 'estado');
   console.log('ok  acciones grabadas con objetivos estables');
 
   // Un solo "escribir" para el documento: el Enter no lo duplica con el change posterior.
@@ -102,6 +103,21 @@ try {
   const vacio = normalizarPaso({ tipo: 'escribir', objetivo: { selector: '#q' }, valor: '' }, {}, { usuario: '' });
   assert.equal(vacio.valor, '');
   console.log('ok  credenciales grabadas como {{credenciales.*}}');
+
+  // Nombres de variable: sin tildes y únicos dentro de la grabación.
+  const usados = new Set<string>();
+  const nombres = [
+    { tipo: 'leer', etiqueta: 'Fecha de afiliación', guardar_como: 'Fecha de afiliación' },
+    { tipo: 'leer', etiqueta: 'Fecha de afiliación', guardar_como: 'Fecha de afiliación' },
+    { tipo: 'leer', guardar_como: 'valor', objetivo: { selector: '#a' } },
+    { tipo: 'leer', guardar_como: 'valor', objetivo: { selector: '#b' } },
+    { tipo: 'leer_tabla', guardar_como: 'filas', objetivo: { selector: 'table' } },
+    { tipo: 'leer_tabla', guardar_como: 'filas', objetivo: { selector: 'table' } },
+  ].map((p) => normalizarPaso(p, {}, {}, usados).guardar_como);
+  assert.deepEqual(nombres, ['fecha_de_afiliacion', 'fecha_de_afiliacion_2', 'valor', 'valor_2', 'filas', 'filas_2']);
+  assert.equal(normalizarPaso({ tipo: 'leer', guardar_como: '¿N° de autorización?' }, {}).guardar_como, 'n_de_autorizacion');
+  assert.equal(normalizarPaso({ tipo: 'leer', guardar_como: '1er apellido' }, {}).guardar_como, 'valor_1er_apellido');
+  console.log('ok  nombres de variable únicos y sin tildes');
 
   console.log('\nTodas las pruebas del grabador pasaron.');
 } finally {

@@ -975,6 +975,11 @@ $('#gr-agregar').onclick = () => {
   const pos = Number($('#gr-posicion').value);
   const nuevos = GR.pasos.filter((_, i) => !(GR.excluidos && GR.excluidos.has(i))).map((p) => { const { alternativas, ...limpio } = p; return limpio; });
   if (!nuevos.length) { mensaje('No hay pasos marcados para añadir.', 'aviso'); return; }
+  // Una lectura nueva no pisa una variable que el flujo ya usa: se renombra con sufijo.
+  const usados = new Set();
+  const recorrer = (l) => (l || []).forEach((p) => { const v = p.guardar_como || (p.tipo === 'asignar' || p.tipo === 'transformar' ? p.variable : p.tipo === 'agregar' ? p.a : null); if (v) usados.add(v); recorrer(p.entonces); recorrer(p.si_no); recorrer(p.pasos); });
+  recorrer(DEF.pasos); recorrer(DEF.sesion && DEF.sesion.login);
+  nuevos.forEach((p) => { if (!p.guardar_como) return; const base = p.guardar_como; let n = base; for (let k = 2; usados.has(n); k++) n = `${base}_${k}`; p.guardar_como = n; usados.add(n); });
   DEF.pasos.splice(pos, 0, ...nuevos);
   clearInterval(GR.timer); modalGr.hidden = true; marcarSucio(); pintarPasosRaiz();
   document.querySelector('.tabs button[data-tab="pasos"]').click();
