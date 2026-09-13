@@ -184,3 +184,11 @@ Ciclo de trabajo:
 3. **Publicar**: el borrador pasa a ser la versión que ejecutan la API y el worker (sube la versión). El worker toma la nueva versión sin reiniciarse.
 
 Un flujo publicado se habilita a un cliente desde la pestaña Clientes y desde ese momento aparece en Consultas y responde en `POST /v1/<portal>/<nombre>` con la clave del cliente.
+
+### Elegir selectores desde las capturas y versiones
+
+En cada prueba lanzada desde el editor, el worker guarda además de la captura los **elementos de la página** (posición sobre la captura, texto, rol, etiqueta, placeholder) con objetivos sugeridos del más estable al menos, en la colección `inspecciones` (se borran a los 7 días). En el editor:
+
+- El botón 📷 junto a cualquier objetivo abre el **inspector**: la captura del paso con los elementos resaltados y una lista filtrable. Un clic en un elemento muestra sus objetivos sugeridos y "Usar" lo escribe en el paso.
+- Desde la miniatura de una captura en "Probar aquí" se abre el mismo inspector para copiar un objetivo o **añadir un paso nuevo** (clic, escribir, leer, esperar, seleccionar) con ese elemento.
+- La pestaña **Versiones** lista cada publicación; se puede ver, comparar con el borrador (diferencias línea a línea) y restaurar como borrador para volver a publicarla.

@@ -121,6 +121,37 @@ pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;pad
 .modal-fondo{position:fixed;inset:0;background:rgba(10,20,40,.45);display:grid;place-items:center;z-index:20}
 .modal{background:var(--paper);border-radius:12px;padding:20px;width:min(520px,92vw);box-shadow:var(--shadow)}
 .modal h3{margin:0 0 6px}
+
+/* Inspector de capturas */
+.inspector{width:min(1240px,96vw);height:min(860px,94vh);display:grid;grid-template-rows:auto 1fr;padding:14px 16px}
+.inspector .cab{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.inspector .cab select{width:auto;max-width:320px}
+.inspector .cuerpo{display:grid;grid-template-columns:1fr 340px;gap:14px;min-height:0}
+.visor{position:relative;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--paper-2)}
+.visor .lienzo{position:relative;display:inline-block;max-width:100%}
+.visor img{display:block;max-width:100%;height:auto}
+.visor .caja{position:absolute;border:1px solid rgba(15,123,134,.55);background:rgba(15,123,134,.06);cursor:pointer;box-sizing:border-box}
+.visor .caja:hover,.visor .caja.hover{border-color:var(--warn);background:rgba(169,100,26,.18);z-index:2}
+.visor .caja.sel{border:2px solid var(--crit);background:rgba(178,58,58,.15);z-index:3}
+.lado{display:flex;flex-direction:column;min-height:0;gap:8px}
+.lado .lista{flex:1;overflow:auto;border:1px solid var(--line);border-radius:8px;font-size:12.5px}
+.lado .lista div.it{padding:6px 8px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;gap:6px;align-items:baseline}
+.lado .lista div.it:hover,.lado .lista div.it.hover{background:var(--paper-2)}
+.lado .lista div.it.sel{background:var(--accent-soft)}
+.lado .lista .tag{font-family:var(--mono);font-size:11px;color:var(--muted);min-width:44px}
+.lado .lista .tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sugerencias{border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--paper-2)}
+.sugerencias h4{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.sugerencias .sg{display:flex;gap:6px;align-items:center;margin:4px 0}
+.sugerencias .sg code{flex:1;font-family:var(--mono);font-size:12px;background:var(--paper);padding:4px 8px;border-radius:6px;border:1px solid var(--line);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn-cam{padding:4px 8px;font-size:12px;border-radius:6px}
+
+/* Versiones */
+.version{display:grid;grid-template-columns:90px 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.version .v{font-family:var(--mono);font-weight:700}
+.version .acc{display:flex;gap:6px}
+.diff{font-family:var(--mono);font-size:12px;background:var(--paper-2);border:1px solid var(--line);border-radius:8px;padding:10px;max-height:360px;overflow:auto;white-space:pre-wrap;margin-top:10px}
+.diff .mas{color:var(--ok)} .diff .menos{color:var(--crit)}
 </style>
 </head>
 <body>
@@ -168,6 +199,7 @@ pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;pad
             <button data-tab="pasos">Pasos <span class="n" id="n-pasos"></span></button>
             <button data-tab="resultado">Resultado</button>
             <button data-tab="clientes">Clientes</button>
+            <button data-tab="versiones">Versiones</button>
             <button data-tab="json">JSON</button>
           </div>
 
@@ -214,6 +246,12 @@ pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;pad
             <div id="clientes"></div>
           </div>
 
+          <div class="card" id="tab-versiones" hidden>
+            <p class="ayuda">Cada publicación queda guardada. Puede ver cualquier versión, compararla con el borrador actual y restaurarla como borrador para volver a publicarla.</p>
+            <div id="versiones"></div>
+            <div id="ver-detalle"></div>
+          </div>
+
           <div class="card" id="tab-json" hidden>
             <p class="ayuda">Definición completa. Puede editarla y aplicarla; también sirve para copiar o pegar flujos.</p>
             <textarea id="def-json" style="min-height:420px"></textarea>
@@ -233,6 +271,26 @@ pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;pad
       </div>
     </div>
   </main>
+</div>
+
+<div id="modal-inspector" class="modal-fondo" hidden>
+  <div class="modal inspector">
+    <div class="cab">
+      <b>Elegir elemento desde una captura</b>
+      <select id="in-trabajo" title="Prueba"></select>
+      <select id="in-captura" title="Captura"></select>
+      <input id="in-filtro" placeholder="Filtrar elementos…" style="width:200px">
+      <span id="in-destino" class="chip" hidden></span>
+      <button class="ghost" id="in-cerrar" style="margin-left:auto">✕ Cerrar</button>
+    </div>
+    <div class="cuerpo">
+      <div class="visor" id="in-visor"><p class="vacio">Elija una prueba con capturas.</p></div>
+      <div class="lado">
+        <div class="lista" id="in-lista"></div>
+        <div class="sugerencias" id="in-sug"><h4>Objetivo sugerido</h4><p class="ayuda">Haga clic en un elemento de la captura o de la lista.</p></div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div id="modal-nuevo" class="modal-fondo" hidden>
@@ -306,8 +364,9 @@ function pintarEditor() {
 
 document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => {
   document.querySelectorAll('.tabs button').forEach((x) => x.classList.toggle('act', x === b));
-  ['general', 'parametros', 'sesion', 'pasos', 'resultado', 'clientes', 'json'].forEach((t) => ($('#tab-' + t).hidden = t !== b.dataset.tab));
+  ['general', 'parametros', 'sesion', 'pasos', 'resultado', 'clientes', 'versiones', 'json'].forEach((t) => ($('#tab-' + t).hidden = t !== b.dataset.tab));
   if (b.dataset.tab === 'json') pintarJson();
+  if (b.dataset.tab === 'versiones') pintarVersiones();
 }));
 
 // ---------------------------------------------------------------------------------
@@ -356,10 +415,10 @@ $('#btn-param').onclick = () => { DEF.parametros.push({ nombre: 'campo' + (DEF.p
 // Objetivos y condiciones (widgets reutilizables)
 // ---------------------------------------------------------------------------------
 const MODOS_OBJ = [['selector', 'Selector CSS'], ['texto', 'Texto visible'], ['rol', 'Rol accesible'], ['etiqueta', 'Etiqueta (label)'], ['placeholder', 'Placeholder']];
-function widgetObjetivo(obj, alCambiar, opcional) {
+function widgetObjetivo(obj, alCambiar, opcional, rutaPaso) {
   const modo = MODOS_OBJ.find(([m]) => obj && obj[m] !== undefined)?.[0] || 'selector';
   const w = el(`<div class="objetivo">
-    <select class="modo">${opcional ? '<option value="">(sin objetivo)</option>' : ''}${MODOS_OBJ.map(([m, t]) => `<option value="${m}"${m === modo && obj ? ' selected' : ''}>${t}</option>`).join('')}</select>
+    <div style="display:flex;gap:4px"><select class="modo" style="flex:1">${opcional ? '<option value="">(sin objetivo)</option>' : ''}${MODOS_OBJ.map(([m, t]) => `<option value="${m}"${m === modo && obj ? ' selected' : ''}>${t}</option>`).join('')}</select><button class="sec btn-cam" title="Elegir desde una captura de la última prueba" type="button">📷</button></div>
     <input class="principal mono" placeholder="${modo === 'selector' ? '#id, .clase, table…' : modo === 'texto' ? 'Texto o /regex/i' : ''}" value="${esc(obj ? obj[modo] ?? '' : '')}">
     <div class="mas">
       <input class="nombre" placeholder="Nombre accesible (rol)" value="${esc(obj?.nombre ?? '')}"${modo === 'rol' ? '' : ' hidden'}>
@@ -384,6 +443,15 @@ function widgetObjetivo(obj, alCambiar, opcional) {
   };
   w.querySelector('.modo').onchange = () => { w.querySelector('.nombre').hidden = w.querySelector('.modo').value !== 'rol'; leer(); };
   w.querySelectorAll('input').forEach((i) => (i.oninput = leer));
+  // Rellena el widget con un objetivo elegido en el inspector de capturas.
+  w.querySelector('.btn-cam').onclick = () => abrirInspector(rutaPaso, (o) => {
+    const m = MODOS_OBJ.find(([k]) => o[k] !== undefined)?.[0] || 'selector';
+    w.querySelector('.modo').value = m; w.querySelector('.nombre').hidden = m !== 'rol';
+    w.querySelector('.principal').value = o[m] ?? ''; w.querySelector('.nombre').value = o.nombre ?? '';
+    w.querySelector('.con_texto').value = o.con_texto ?? ''; w.querySelector('.indice').value = o.indice ?? ''; w.querySelector('.exacto').checked = !!o.exacto;
+    w.querySelector('.dentro').value = o.dentro_de ? JSON.stringify(o.dentro_de) : '';
+    leer();
+  });
   return w;
 }
 
@@ -446,8 +514,8 @@ const textoDesdeValor = (v) => (v === undefined ? '' : typeof v === 'string' ? v
 // ---------------------------------------------------------------------------------
 const CAMPOS = {
   ir: [{ n: 'url', etq: 'URL', ph: 'https://… o {{config.url}}' }],
-  clic: [{ n: 'objetivo', t: 'objetivo' }, { n: 'opcional', t: 'bool', etq: 'Opcional: si no aparece, se sigue sin error' }],
-  escribir: [{ n: 'objetivo', t: 'objetivo' }, { n: 'valor', etq: 'Valor', ph: '{{num_doc}}' }, { n: 'tecla', etq: 'Tecla al terminar', ph: 'Enter, Tab…' }],
+  clic: [{ n: 'objetivo', t: 'objetivo', etq: 'Elemento' }, { n: 'opcional', t: 'bool', etq: 'Opcional: si no aparece, se sigue sin error' }],
+  escribir: [{ n: 'objetivo', t: 'objetivo', etq: 'Campo' }, { n: 'valor', etq: 'Valor', ph: '{{num_doc}}' }, { n: 'tecla', etq: 'Tecla al terminar', ph: 'Enter, Tab…' }],
   seleccionar: [{ n: 'objetivo', t: 'objetivo', etq: 'Lista desplegable' }, { n: 'texto', etq: 'Opción por texto', ph: 'Todas' }, { n: 'valor', etq: '…o por valor', ph: '{{tipo_doc}}' }],
   presionar: [{ n: 'tecla', etq: 'Tecla', ph: 'Enter' }, { n: 'objetivo', t: 'objetivo', opcional: true, etq: 'Sobre el elemento' }],
   esperar: [{ n: 'objetivo', t: 'objetivo', opcional: true, etq: 'Hasta que aparezca el elemento' }, { n: 'texto', etq: '…o el texto', ph: 'Información usuario' }, { n: 'url', etq: '…o la URL (regex)' }, { n: 'ms', t: 'numero', etq: '…o un tiempo fijo (ms)' }, { n: 'habilitado', t: 'bool', etq: 'Y que esté habilitado' }, { n: 'opcional', t: 'bool', etq: 'Opcional: si no aparece, se sigue' }, { n: 'guardar_como', etq: 'Guardar si apareció en', ph: 'hay_tabla' }],
@@ -537,7 +605,7 @@ function tarjetaPaso(p, i, lista, prefijo, anidado, repintar) {
       const etq = c.etq || c.n;
       const bloque = el(`<div><label>${esc(etq)}${c.opcional || (c.t !== 'objetivo' && c.t !== 'pasos' && c.t !== 'condicion' && !['guardar_como', 'url', 'variable', 'de', 'en', 'lista', 'codigo', 'mensaje', 'nombre', 'tecla', 'a'].includes(c.n)) ? ' <span class="op">(opcional)</span>' : ''}</label></div>`);
       const set = (v) => { if (v === undefined || v === '' || v === false || (Array.isArray(v) && !v.length && c.t !== 'pasos' && c.t !== 'reglas' && c.t !== 'condiciones' && c.t !== 'json')) delete p[c.n]; else p[c.n] = v; marcarSucio(); actualizarResumen(); };
-      if (c.t === 'objetivo') bloque.appendChild(widgetObjetivo(p[c.n], set, c.opcional));
+      if (c.t === 'objetivo') bloque.appendChild(widgetObjetivo(p[c.n], set, c.opcional, num));
       else if (c.t === 'bool') { const inp = el(`<label style="margin:0;font-weight:500"><input type="checkbox"${p[c.n] ?? c.def ? ' checked' : ''}> ${esc(etq)}</label>`); bloque.innerHTML = ''; inp.querySelector('input').onchange = (e) => { if (c.def === true) { p[c.n] = e.target.checked; marcarSucio(); } else set(e.target.checked); }; bloque.appendChild(inp); }
       else if (c.t === 'numero') { const inp = el(`<input type="number" value="${p[c.n] ?? ''}">`); inp.oninput = () => set(inp.value === '' ? undefined : Number(inp.value)); bloque.appendChild(inp); }
       else if (c.t === 'select') { const s = el(`<select>${c.ops.map((o) => `<option value="${o}"${(p[c.n] ?? '') === o ? ' selected' : ''}>${o || '(sin convertir)'}</option>`).join('')}</select>`); s.onchange = () => set(s.value || undefined); bloque.appendChild(s); }
@@ -678,10 +746,12 @@ function seguirPrueba(id) {
     if (t.estado === 'completado' || t.estado === 'fallido') { clearInterval(PRUEBA_TIMER); $('#btn-ejecutar-prueba').disabled = false; }
   }, 2000);
 }
+// Nombre de una captura a partir de su URL (Cloudinary o /admin/api/captura?ruta=...).
+const nombreCaptura = (u) => { try { const q = new URL(u, location.origin).searchParams.get('ruta'); const base = (q || u.split('?')[0]).split(/[\\/]/).pop(); return decodeURIComponent(base).replace(/\.png$/, ''); } catch { return 'captura'; } };
 function pintarPruebaEstado(t) {
   const bit = (t.bitacora || []).map((a) => `<div class="${/fall|error|inválid/i.test(a.mensaje) ? 'err' : ''}">${esc(new Date(a.t).toLocaleTimeString('es-CO', { hour12: false }))} ${esc(a.mensaje)}</div>`).join('');
-  const nombreCaptura = (u) => { try { const q = new URL(u, location.origin).searchParams.get('ruta'); const base = (q || u.split('?')[0]).split(/[\\/]/).pop(); return decodeURIComponent(base).replace(/\.png$/, ''); } catch { return 'captura'; } };
-  const caps = (t.capturas || []).map((u) => { const n = nombreCaptura(u); return `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt=""><small title="${esc(n)}">${esc(n)}</small></a>`; }).join('');
+  const caps = (t.capturas || []).map((u) => { const n = nombreCaptura(u); return `<a href="${esc(u)}" data-cap="${esc(n)}" title="Abrir en el inspector"><img src="${esc(u)}" alt=""><small title="${esc(n)}">${esc(n)}</small></a>`; }).join('');
+  if (t.prueba) ULTIMA_PRUEBA = t.id;
   const activo = t.estado === 'pendiente' || t.estado === 'en_proceso';
   $('#pr-salida').innerHTML = `
     <div style="display:flex;gap:8px;align-items:center">${activo ? '<span class="spinner"></span>' : ''}<span class="pill ${t.estado}">${t.estado.replace('_', ' ')}</span><span class="ayuda mono">${esc(t.id)}</span>${t.duracion_ms ? `<span class="ayuda">${(t.duracion_ms / 1000).toFixed(0)} s</span>` : ''}</div>
@@ -690,6 +760,154 @@ function pintarPruebaEstado(t) {
     ${caps ? `<label>Capturas por paso</label><div class="capturas">${caps}</div>` : ''}
     ${t.estado === 'completado' ? `<label>Resultado</label><pre>${esc(JSON.stringify(t.resultado, null, 2))}</pre>` : ''}`;
   const b = $('#bit'); if (b) b.scrollTop = b.scrollHeight;
+  $('#pr-salida').querySelectorAll('.capturas a').forEach((a) => (a.onclick = (e) => { e.preventDefault(); abrirInspector(null, null, t.id, a.dataset.cap); }));
+}
+
+// ---------------------------------------------------------------------------------
+// Inspector de capturas: elegir objetivos con un clic
+// ---------------------------------------------------------------------------------
+let ULTIMA_PRUEBA = null, INS = { trabajo: null, captura: null, datos: null, alElegir: null, sel: null };
+const modal = $('#modal-inspector');
+$('#in-cerrar').onclick = () => (modal.hidden = true);
+modal.addEventListener('click', (e) => { if (e.target === modal) modal.hidden = true; });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) modal.hidden = true; });
+
+async function abrirInspector(rutaPaso, alElegir, trabajoId, captura) {
+  INS = { trabajo: null, captura: null, datos: null, alElegir, sel: null };
+  $('#in-destino').hidden = !alElegir; $('#in-destino').textContent = alElegir ? `→ paso ${rutaPaso}` : '';
+  $('#in-sug').innerHTML = '<h4>Objetivo sugerido</h4><p class="ayuda">Haga clic en un elemento de la captura o de la lista.</p>';
+  $('#in-lista').innerHTML = ''; $('#in-visor').innerHTML = '<p class="vacio">Cargando pruebas…</p>'; $('#in-filtro').value = '';
+  modal.hidden = false;
+  let pruebas = [];
+  try { pruebas = (await api(`/trabajos?modulo=${encodeURIComponent(DEF.nombre)}&prueba=1&limite=15`)).trabajos; } catch { /* sin pruebas */ }
+  const selT = $('#in-trabajo');
+  selT.innerHTML = pruebas.map((p) => `<option value="${p.id}">${esc(new Date(p.creado).toLocaleString('es-CO', { hour12: false, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }))} · ${esc(p.estado)} · ${esc(p.cliente)}</option>`).join('') || '<option value="">(este flujo no tiene pruebas)</option>';
+  if (!pruebas.length) { $('#in-visor').innerHTML = '<p class="vacio">Ejecute una prueba desde "Probar aquí": el robot guarda una captura y los elementos de la página después de cada paso.</p>'; return; }
+  selT.value = trabajoId && pruebas.some((p) => p.id === trabajoId) ? trabajoId : (ULTIMA_PRUEBA && pruebas.some((p) => p.id === ULTIMA_PRUEBA) ? ULTIMA_PRUEBA : pruebas[0].id);
+  const cargar = async (cap) => { try { await cargarCapturas(selT.value, cap, rutaPaso); } catch (e) { $('#in-visor').innerHTML = `<div class="error">No se pudieron cargar las capturas: ${esc(e.message)}</div>`; } };
+  selT.onchange = () => cargar(null);
+  await cargar(captura);
+}
+
+async function cargarCapturas(trabajoId, captura, rutaPaso) {
+  INS.trabajo = trabajoId;
+  const [t, { inspecciones }] = await Promise.all([api('/trabajos/' + trabajoId), api(`/trabajos/${trabajoId}/inspecciones`)]);
+  INS.capturasUrl = Object.fromEntries((t.capturas || []).map((u) => [nombreCaptura(u), u]));
+  const selC = $('#in-captura');
+  const conInspeccion = inspecciones.filter((i) => INS.capturasUrl[i.captura]);
+  selC.innerHTML = conInspeccion.map((i) => `<option value="${esc(i.captura)}">${esc(i.captura)} (${i.elementos})</option>`).join('') || '<option value="">(sin capturas inspeccionadas)</option>';
+  if (!conInspeccion.length) { $('#in-visor').innerHTML = '<p class="vacio">Esta prueba no tiene inspecciones. Las pruebas nuevas las generan automáticamente.</p>'; $('#in-lista').innerHTML = ''; return; }
+  // Por defecto: la captura del mismo paso, o la última anterior a él, o la última.
+  let elegida = captura && conInspeccion.some((i) => i.captura === captura) ? captura : null;
+  if (!elegida && rutaPaso) {
+    const num = (c) => { const m = /^paso-([\d.]+)-/.exec(c); return m ? m[1].split('.').map(Number) : null; };
+    const cmp = (a, b) => { for (let i = 0; i < Math.max(a.length, b.length); i++) { const d = (a[i] ?? -1) - (b[i] ?? -1); if (d) return d; } return 0; };
+    const objetivo = String(rutaPaso).split('.').map(Number);
+    const candidatas = conInspeccion.filter((i) => num(i.captura)).sort((a, b) => cmp(num(a.captura), num(b.captura)));
+    const previa = candidatas.filter((i) => cmp(num(i.captura), objetivo) < 0).pop();
+    elegida = (previa || candidatas[candidatas.length - 1] || conInspeccion[0]).captura;
+  }
+  selC.value = elegida || conInspeccion[0].captura;
+  selC.onchange = () => mostrarCaptura(selC.value);
+  await mostrarCaptura(selC.value);
+}
+
+async function mostrarCaptura(captura) {
+  INS.captura = captura; INS.sel = null;
+  const datos = await api(`/trabajos/${INS.trabajo}/inspecciones/${encodeURIComponent(captura)}`);
+  INS.datos = datos;
+  const visor = $('#in-visor');
+  visor.innerHTML = `<div class="lienzo"><img src="${esc(INS.capturasUrl[captura])}" alt=""></div>`;
+  const img = visor.querySelector('img');
+  const pintarCajas = () => {
+    const escala = img.naturalWidth ? img.clientWidth / img.naturalWidth : 1;
+    visor.querySelectorAll('.caja').forEach((c) => c.remove());
+    datos.elementos.forEach((e, i) => {
+      const [x, y, w, h] = e.caja;
+      const c = el(`<div class="caja" data-i="${i}" style="left:${x * escala}px;top:${y * escala}px;width:${w * escala}px;height:${h * escala}px" title="${esc(e.tag + (e.texto ? ': ' + e.texto : ''))}"></div>`);
+      c.onclick = () => elegirElemento(i); c.onmouseenter = () => resaltar(i, true); c.onmouseleave = () => resaltar(i, false);
+      visor.querySelector('.lienzo').appendChild(c);
+    });
+  };
+  if (img.complete) pintarCajas(); else img.onload = pintarCajas;
+  INS.repintar = pintarCajas;
+  pintarListaElementos();
+}
+window.addEventListener('resize', () => { if (!modal.hidden && INS.repintar) INS.repintar(); });
+function pintarListaElementos() {
+  const f = $('#in-filtro').value.trim().toLowerCase();
+  const lista = $('#in-lista'); lista.innerHTML = '';
+  (INS.datos?.elementos || []).forEach((e, i) => {
+    const txt = `${e.tag} ${e.texto} ${e.id || ''} ${e.name || ''} ${e.placeholder || ''} ${e.etiqueta || ''} ${e.rol || ''}`.toLowerCase();
+    if (f && !txt.includes(f)) return;
+    const it = el(`<div class="it" data-i="${i}"><span class="tag">${esc(e.rol || e.tag)}</span><span class="tx">${esc(e.texto || e.placeholder || e.etiqueta || e.id || e.name || '(sin texto)')}</span></div>`);
+    it.onclick = () => elegirElemento(i); it.onmouseenter = () => resaltar(i, true); it.onmouseleave = () => resaltar(i, false);
+    lista.appendChild(it);
+  });
+}
+$('#in-filtro').oninput = pintarListaElementos;
+function resaltar(i, on) { document.querySelectorAll(`#in-visor .caja[data-i="${i}"], #in-lista .it[data-i="${i}"]`).forEach((x) => x.classList.toggle('hover', on)); }
+function elegirElemento(i) {
+  INS.sel = i;
+  document.querySelectorAll('#in-visor .caja.sel, #in-lista .it.sel').forEach((x) => x.classList.remove('sel'));
+  document.querySelectorAll(`#in-visor .caja[data-i="${i}"], #in-lista .it[data-i="${i}"]`).forEach((x) => x.classList.add('sel'));
+  const it = $(`#in-lista .it[data-i="${i}"]`); if (it) it.scrollIntoView({ block: 'nearest' });
+  const e = INS.datos.elementos[i];
+  const box = $('#in-sug');
+  box.innerHTML = `<h4>Objetivo sugerido</h4><p class="ayuda" style="margin-bottom:6px"><b>${esc(e.tag)}</b>${e.rol ? ' · ' + esc(e.rol) : ''}${e.texto ? ' · "' + esc(e.texto) + '"' : ''}</p>` +
+    e.sugerencias.map((s, k) => `<div class="sg"><code title="${esc(JSON.stringify(s))}">${esc(describirSug(s))}</code><button class="mini${k === 0 ? '' : ' sec'}" data-k="${k}">${INS.alElegir ? 'Usar' : 'Copiar'}</button></div>`).join('') +
+    (INS.alElegir ? '' : `<div class="agregar-paso" style="margin-top:8px"><select id="in-nuevo"><option value="">+ Añadir paso con este elemento…</option><option value="clic">Clic</option><option value="escribir">Escribir</option><option value="leer">Leer valor</option><option value="esperar">Esperar</option><option value="seleccionar">Seleccionar opción</option></select></div>`);
+  box.querySelectorAll('button[data-k]').forEach((b) => (b.onclick = () => {
+    const s = e.sugerencias[Number(b.dataset.k)];
+    if (INS.alElegir) { INS.alElegir(s); modal.hidden = true; }
+    else { navigator.clipboard?.writeText(JSON.stringify(s)); b.textContent = '✓ copiado'; }
+  }));
+  const nuevo = box.querySelector('#in-nuevo');
+  if (nuevo) nuevo.onchange = () => { if (!nuevo.value) return; const p = nuevoPaso(nuevo.value); p.objetivo = e.sugerencias[0]; if (nuevo.value === 'leer') p.guardar_como = 'valor'; DEF.pasos.push(p); marcarSucio(); pintarPasosRaiz(); modal.hidden = true; document.querySelector('.tabs button[data-tab="pasos"]').click(); mensaje(`Paso ${DEF.pasos.length} añadido al final con el elemento elegido.`); };
+}
+const describirSug = (s) => s.selector ? `selector ${s.selector}` : s.etiqueta ? `etiqueta "${s.etiqueta}"` : s.placeholder ? `placeholder "${s.placeholder}"` : s.rol ? `rol ${s.rol}${s.nombre ? ` "${s.nombre}"` : ''}${s.indice !== undefined ? ` #${s.indice}` : ''}` : s.texto ? `texto "${s.texto}"${s.exacto ? ' (exacto)' : ''}` : JSON.stringify(s);
+
+// ---------------------------------------------------------------------------------
+// Versiones
+// ---------------------------------------------------------------------------------
+async function pintarVersiones() {
+  const box = $('#versiones'); $('#ver-detalle').innerHTML = '';
+  if (!META) { box.innerHTML = '<p class="ayuda">Guarde y publique el flujo para tener versiones.</p>'; return; }
+  const { versiones, actual } = await api('/flujos/' + DEF.nombre + '/versiones');
+  if (!versiones.length) { box.innerHTML = '<p class="ayuda">Todavía no hay publicaciones.</p>'; return; }
+  box.innerHTML = versiones.map((v) => `<div class="version"><span class="v">v${v.version}${v.version === actual ? ' <span class="chip pub">vigente</span>' : ''}</span><span>${esc(new Date(v.publicadoEn).toLocaleString('es-CO', { hour12: false }))} · ${v.pasos} pasos · ${v.parametros} parámetros</span><span class="acc"><button class="mini sec" data-ver="${v.version}" data-a="ver">Ver</button><button class="mini sec" data-ver="${v.version}" data-a="comparar">Comparar con borrador</button><button class="mini sec" data-ver="${v.version}" data-a="restaurar">Restaurar como borrador</button></span></div>`).join('');
+  box.querySelectorAll('button').forEach((b) => (b.onclick = async () => {
+    const v = Number(b.dataset.ver);
+    if (b.dataset.a === 'restaurar') {
+      if (SUCIO && !confirm('El borrador tiene cambios sin guardar que se perderán. ¿Continuar?')) return;
+      if (!confirm(`¿Copiar la versión ${v} al borrador? Después puede editarla y publicarla.`)) return;
+      await api(`/flujos/${DEF.nombre}/versiones/${v}/restaurar`, { method: 'POST' }); SUCIO = false; await abrir(DEF.nombre); mensaje(`Versión ${v} restaurada como borrador.`); document.querySelector('.tabs button[data-tab="pasos"]').click();
+      return;
+    }
+    const { definicion } = await api(`/flujos/${DEF.nombre}/versiones/${v}`);
+    if (b.dataset.a === 'ver') $('#ver-detalle').innerHTML = `<label>Versión ${v}</label><pre style="max-height:420px">${esc(JSON.stringify(definicion, null, 2))}</pre>`;
+    else $('#ver-detalle').innerHTML = `<label>Diferencias: versión ${v} → borrador actual</label>${diffHtml(JSON.stringify(definicion, null, 2), JSON.stringify(DEF, null, 2))}`;
+  }));
+}
+// Diferencia línea a línea (LCS) entre dos textos; suficiente para revisar cambios de un flujo.
+function diffHtml(a, b) {
+  const A = a.split('\n'), B = b.split('\n');
+  const n = A.length, m = B.length;
+  if (n * m > 4_000_000) return `<div class="diff">Demasiado grande para comparar (${n} y ${m} líneas).</div>`;
+  const L = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const out = []; let i = 0, j = 0, cambios = 0;
+  while (i < n && j < m) {
+    if (A[i] === B[j]) { out.push(`<div> ${esc(A[i])}</div>`); i++; j++; }
+    else if (L[i + 1][j] >= L[i][j + 1]) { out.push(`<div class="menos">-${esc(A[i])}</div>`); i++; cambios++; }
+    else { out.push(`<div class="mas">+${esc(B[j])}</div>`); j++; cambios++; }
+  }
+  while (i < n) { out.push(`<div class="menos">-${esc(A[i++])}</div>`); cambios++; }
+  while (j < m) { out.push(`<div class="mas">+${esc(B[j++])}</div>`); cambios++; }
+  // Solo se muestran las líneas cambiadas con dos de contexto.
+  const marcadas = out.map((h) => /class="(mas|menos)"/.test(h));
+  const visibles = out.filter((_, k) => marcadas.slice(Math.max(0, k - 2), k + 3).some(Boolean));
+  return `<p class="ayuda">${cambios ? cambios + ' líneas cambiadas' : 'Sin diferencias'}</p><div class="diff">${visibles.join('') || ''}</div>`;
 }
 
 // ---------------------------------------------------------------------------------

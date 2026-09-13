@@ -11,3 +11,5 @@ export { Sesion } from './modelos/Sesion.js';
 export { Flujo, ESTADOS_FLUJO } from './modelos/Flujo.js';
 export type { FlujoDoc } from './modelos/Flujo.js';
 export * from './flujos/index.js';
+export { Inspeccion } from './modelos/Inspeccion.js';
+export type { InspeccionDoc, ElementoInspeccion } from './modelos/Inspeccion.js';

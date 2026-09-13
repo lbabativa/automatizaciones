@@ -25,6 +25,7 @@ import {
 import { nombresModulosSoportados, registro, resolverModulo } from '@startia/modulos';
 import { asegurarSesion } from './sesionHelper.js';
 import { capturarEvidencia } from './evidencias.js';
+import { inspeccionarPagina } from './inspeccionPagina.js';
 import { cerrarTodo, guardarSesion, invalidarSesion, obtenerContexto } from './navegador.js';
 
 const WORKER_ID = env('WORKER_ID', 'worker-1');
@@ -88,7 +89,14 @@ async function procesar(trabajo: TrabajoDoc): Promise<void> {
     await page.goto(modulo.urlInicio, { waitUntil: 'networkidle' });
     await asegurarSesion(modulo, contexto, page, credenciales, { headless: HEADLESS, log: logTrabajo, clienteSlug: cliente.slug });
 
-    const resultado = await modulo.ejecutar({ parametros: trabajo.parametros, credenciales, config: configModulo, page, capturar, log: logTrabajo });
+    // En pruebas, además de la captura se guardan los elementos de la página para el editor de flujos.
+    const inspeccionar = prueba
+      ? async (nombre: string) => {
+          const n = await inspeccionarPagina(page, trabajo._id, nombre);
+          logTrabajo(`inspección ${nombre}: ${n} elementos`);
+        }
+      : undefined;
+    const resultado = await modulo.ejecutar({ parametros: trabajo.parametros, credenciales, config: configModulo, page, capturar, inspeccionar, log: logTrabajo });
     await guardarSesion(cliente.slug, modulo.portal, contexto, 'automatica');
     await completar(trabajo._id, resultado, capturas);
     log(`Trabajo ${id} completado (${modulo.nombre}, ${cliente.slug})`);

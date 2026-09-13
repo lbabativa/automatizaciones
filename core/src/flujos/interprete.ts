@@ -21,6 +21,8 @@ interface Estado {
   ruta: string[];
   /** Modo prueba: captura de pantalla después de cada paso que toca la página. */
   capturarCadaPaso?: boolean;
+  /** Modo prueba: guarda los elementos de la página junto a cada captura por paso. */
+  inspeccionar?(nombre: string): Promise<void>;
 }
 
 /** Pasos que cambian o leen la página; los demás solo mueven datos. */
@@ -436,6 +438,7 @@ async function ejecutarPaso(paso: Paso, est: Estado): Promise<void> {
 
     case 'capturar':
       await est.capturar(s(paso.nombre));
+      if (est.inspeccionar) await est.inspeccionar(s(paso.nombre)).catch((e) => est.log(`No se pudo inspeccionar la página: ${(e as Error).message}`));
       return;
 
     case 'asignar':
@@ -568,7 +571,11 @@ export async function ejecutarPasos(pasos: Paso[], est: Estado): Promise<void> {
     est.log(`paso ${sub.ruta.join('.')} ${paso.tipo}${paso.titulo ? ` · ${paso.titulo}` : ''}`);
     try {
       await ejecutarPaso(paso, sub);
-      if (est.capturarCadaPaso && PASOS_VISUALES.has(paso.tipo)) await est.capturar(`paso-${sub.ruta.join('.')}-${paso.tipo}`);
+      if (est.capturarCadaPaso && PASOS_VISUALES.has(paso.tipo)) {
+        const nombre = `paso-${sub.ruta.join('.')}-${paso.tipo}`;
+        await est.capturar(nombre);
+        if (est.inspeccionar) await est.inspeccionar(nombre).catch((e) => est.log(`No se pudo inspeccionar la página: ${(e as Error).message}`));
+      }
     } catch (e) {
       if (e instanceof FinDelFlujo || e instanceof ErrorNegocio || e instanceof ErrorSesion || e instanceof ErrorPortal) throw e;
       const msg = (e as Error).message.split('\n')[0];
@@ -664,7 +671,7 @@ export function moduloDesdeFlujo(def: FlujoDef, version = 0, opciones: OpcionesF
 
     async ejecutar(ctx: ContextoEjecucion<Record<string, unknown>>): Promise<unknown> {
       const vars = variablesIniciales(ctx);
-      const est: Estado = { page: ctx.page, vars, capturar: ctx.capturar, log: ctx.log, ruta: [], capturarCadaPaso: opciones.capturarCadaPaso };
+      const est: Estado = { page: ctx.page, vars, capturar: ctx.capturar, log: ctx.log, ruta: [], capturarCadaPaso: opciones.capturarCadaPaso, inspeccionar: ctx.inspeccionar };
       try {
         await ejecutarPasos(def.pasos, est);
       } catch (e) {

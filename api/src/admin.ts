@@ -20,6 +20,7 @@ import {
   esquemaParametros,
   Flujo,
   FlujoDefSchema,
+  Inspeccion,
   rutaProyecto,
   Sesion,
   Trabajo,
@@ -27,6 +28,7 @@ import {
   type ClienteDoc,
   type FlujoDef,
   type FlujoDoc,
+  type InspeccionDoc,
   type TrabajoDoc,
 } from '@startia/core';
 import { listarModulosDisponibles, registro, resolverModulo } from '@startia/modulos';
@@ -209,10 +211,31 @@ admin.get('/api/trabajos', async (c) => {
   const filtro: Record<string, unknown> = {};
   const slug = c.req.query('cliente');
   const estado = c.req.query('estado');
+  const modulo = c.req.query('modulo');
+  const prueba = c.req.query('prueba');
   if (slug) filtro.clienteSlug = slug;
   if (estado) filtro.estado = estado;
+  if (modulo) filtro.modulo = modulo;
+  if (prueba === '1') filtro.prueba = { $exists: true };
+  if (prueba === '0') filtro.prueba = { $exists: false };
   const trabajos = await Trabajo.find(filtro).sort({ createdAt: -1 }).limit(limite).lean<TrabajoDoc[]>();
   return c.json({ trabajos: trabajos.map(resumen) });
+});
+
+/** Inspecciones (elementos por captura) de un trabajo de prueba, sin los elementos. */
+admin.get('/api/trabajos/:id/inspecciones', async (c) => {
+  const id = c.req.param('id');
+  if (!mongoose.isValidObjectId(id)) return c.json({ error: 'ID_INVALIDO' }, 400);
+  const lista = await Inspeccion.find({ trabajoId: id }).select('captura url ancho alto elementos').lean<InspeccionDoc[]>();
+  return c.json({ inspecciones: lista.map((i) => ({ captura: i.captura, url: i.url, ancho: i.ancho, alto: i.alto, elementos: i.elementos.length })) });
+});
+
+admin.get('/api/trabajos/:id/inspecciones/:captura', async (c) => {
+  const { id, captura } = c.req.param();
+  if (!mongoose.isValidObjectId(id)) return c.json({ error: 'ID_INVALIDO' }, 400);
+  const i = await Inspeccion.findOne({ trabajoId: id, captura }).lean<InspeccionDoc>();
+  if (!i) return c.json({ error: 'NO_ENCONTRADA' }, 404);
+  return c.json({ captura: i.captura, url: i.url, ancho: i.ancho, alto: i.alto, elementos: i.elementos });
 });
 
 admin.get('/api/trabajos/:id', async (c) => {
@@ -321,8 +344,50 @@ admin.post('/api/flujos/:nombre/publicar', async (c) => {
   const val = FlujoDefSchema.safeParse(def);
   if (!val.success) return c.json({ error: 'FLUJO_INVALIDO', mensaje: z.prettifyError(val.error) }, 400);
   const version = (f.version ?? 0) + 1;
-  await Flujo.updateOne({ nombre }, { $set: { estado: 'publicado', version, definicion: val.data, borrador: null, publicadoEn: new Date() } });
+  const ahora = new Date();
+  await Flujo.updateOne(
+    { nombre },
+    {
+      $set: { estado: 'publicado', version, definicion: val.data, borrador: null, publicadoEn: ahora },
+      $push: { versiones: { $each: [{ version, definicion: val.data, publicadoEn: ahora }], $slice: -30 } },
+    },
+  );
   return c.json({ ok: true, version });
+});
+
+/** Historial de versiones publicadas (sin las definiciones completas). */
+admin.get('/api/flujos/:nombre/versiones', async (c) => {
+  const f = await Flujo.findOne({ nombre: c.req.param('nombre') }).lean<FlujoDoc>();
+  if (!f) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  const versiones = (f.versiones ?? []) as Array<{ version: number; definicion: FlujoDef; publicadoEn: Date }>;
+  return c.json({
+    actual: f.version,
+    versiones: versiones
+      .slice()
+      .reverse()
+      .map((v) => ({ version: v.version, publicadoEn: v.publicadoEn, pasos: v.definicion?.pasos?.length ?? 0, parametros: v.definicion?.parametros?.length ?? 0, titulo: v.definicion?.titulo })),
+  });
+});
+
+admin.get('/api/flujos/:nombre/versiones/:v', async (c) => {
+  const f = await Flujo.findOne({ nombre: c.req.param('nombre') }).lean<FlujoDoc>();
+  if (!f) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  const v = Number(c.req.param('v'));
+  const encontrada = ((f.versiones ?? []) as Array<{ version: number; definicion: FlujoDef; publicadoEn: Date }>).find((x) => x.version === v);
+  if (!encontrada) return c.json({ error: 'VERSION_NO_ENCONTRADA' }, 404);
+  return c.json(encontrada);
+});
+
+/** Copia una versión anterior al borrador; publicar después la convierte en la versión vigente. */
+admin.post('/api/flujos/:nombre/versiones/:v/restaurar', async (c) => {
+  const nombre = c.req.param('nombre');
+  const f = await Flujo.findOne({ nombre }).lean<FlujoDoc>();
+  if (!f) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  const v = Number(c.req.param('v'));
+  const encontrada = ((f.versiones ?? []) as Array<{ version: number; definicion: FlujoDef }>).find((x) => x.version === v);
+  if (!encontrada) return c.json({ error: 'VERSION_NO_ENCONTRADA' }, 404);
+  await Flujo.updateOne({ nombre }, { $set: { borrador: encontrada.definicion } });
+  return c.json({ ok: true, version: v });
 });
 
 /** Descarta el borrador y vuelve a la versión publicada. */

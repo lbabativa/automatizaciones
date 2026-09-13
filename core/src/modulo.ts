@@ -17,6 +17,11 @@ export interface ContextoEjecucion<P> {
   page: Page;
   /** Guarda una captura de pantalla como evidencia del paso. */
   capturar(nombre: string): Promise<void>;
+  /**
+   * Guarda los elementos de la página (posición, texto, sugerencias de objetivo) asociados a
+   * una captura del mismo nombre. Solo lo provee el worker en trabajos de prueba.
+   */
+  inspeccionar?(nombre: string): Promise<void>;
   log(mensaje: string): void;
 }
 

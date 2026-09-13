@@ -16,6 +16,11 @@ const FlujoSchema = new Schema(
     /** Definición en edición, aún no publicada. */
     borrador: { type: Schema.Types.Mixed },
     publicadoEn: { type: Date },
+    /** Historial de publicaciones (las 30 más recientes), para comparar y restaurar. */
+    versiones: {
+      type: [new Schema({ version: Number, definicion: Schema.Types.Mixed, publicadoEn: Date }, { _id: false })],
+      default: [],
+    },
   },
   { timestamps: true, collection: 'flujos' },
 );
