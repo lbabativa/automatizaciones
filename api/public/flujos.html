@@ -307,7 +307,8 @@ pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;pad
       <div class="agregar-paso" style="justify-content:flex-end;margin-top:14px"><button type="button" class="ghost" id="gr-cancelar">Cancelar</button><button type="button" id="gr-iniciar">Iniciar grabación</button></div>
     </div>
     <div id="gr-curso" hidden>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span id="gr-estado" class="chip"></span><span id="gr-info" class="ayuda"></span><button class="mini peligro" id="gr-detener" style="margin-left:auto">Detener</button></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><span id="gr-estado" class="chip"></span><span id="gr-info" class="ayuda"></span><button class="mini sec" id="gr-pausar" style="margin-left:auto">Pausar</button><button class="mini peligro" id="gr-detener">Detener</button></div>
+      <p class="ayuda" style="margin:0 0 6px">Gestos en la ventana del portal: Alt+clic lee un valor · Alt+Shift+clic lee una tabla · Shift+clic espera un elemento · Ctrl+clic crea una condición "si aparece" · Ctrl+Shift+S captura · Ctrl+Shift+Z deshace · Ctrl+Shift+P pausa. Desmarque los pasos que no quiera añadir.</p>
       <div id="gr-lista" class="lista" style="max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:8px;font-size:12.5px"></div>
       <div id="gr-fin" hidden>
         <div class="agregar-paso" style="margin-top:12px"><label style="margin:0">Añadir</label><select id="gr-posicion"></select><button id="gr-agregar">Añadir pasos al borrador</button><button class="ghost" id="gr-cerrar">Cerrar sin añadir</button></div>
@@ -588,9 +589,22 @@ function widgetPasos(lista, prefijo, anidado) {
   const pintar = () => {
     w.innerHTML = '';
     lista.forEach((p, i) => w.appendChild(tarjetaPaso(p, i, lista, prefijo, anidado, pintar)));
-    const add = el(`<div class="agregar-paso"><select><option value="">+ Añadir paso…</option>${TIPOS.map((t) => `<option value="${t}">${DESCR[t] || t}</option>`).join('')}</select><button class="mini ghost" title="Pegar JSON de un paso">Pegar JSON</button></div>`);
+    const add = el(`<div class="agregar-paso"><select><option value="">+ Añadir paso…</option>${TIPOS.map((t) => `<option value="${t}">${DESCR[t] || t}</option>`).join('')}</select><button class="mini ghost" title="Pegar JSON de un paso">Pegar JSON</button><span style="flex:1"></span><span class="sel-acciones" hidden><span class="ayuda" style="margin-right:6px"><b class="n-sel"></b> marcados:</span><button class="mini sec" data-w="si" title="Mover los pasos marcados dentro de un nuevo si… entonces">Envolver en si</button><button class="mini sec" data-w="para_cada" title="Mover los pasos marcados dentro de un nuevo para cada">Envolver en para cada</button><button class="mini ghost" data-w="quitar" style="color:var(--crit)">Quitar</button></span></div>`);
     add.querySelector('select').onchange = (e) => { if (!e.target.value) return; lista.push(nuevoPaso(e.target.value)); marcarSucio(); pintar(); $('#n-pasos').textContent = contarPasos(DEF.pasos); w.lastElementChild.previousElementSibling.classList.remove('plegado'); };
     add.querySelector('button').onclick = () => { const t = prompt('JSON del paso:'); if (!t) return; try { const p = JSON.parse(t); if (!p.tipo) throw new Error('sin tipo'); lista.push(p); marcarSucio(); pintar(); } catch (e) { alert('JSON inválido: ' + e.message); } };
+    // Envolver o quitar los pasos marcados con la casilla de cada tarjeta.
+    const marcados = () => [...w.querySelectorAll(':scope > .paso > .cab > input.marca:checked')].map((c) => Number(c.dataset.i)).sort((a, b) => a - b);
+    w.addEventListener('change', (e) => { if (e.target.classList.contains('marca')) { const n = marcados().length; add.querySelector('.sel-acciones').hidden = n === 0; add.querySelector('.n-sel').textContent = n; } });
+    add.querySelectorAll('[data-w]').forEach((b) => (b.onclick = () => {
+      const idx = marcados(); if (!idx.length) return;
+      const sacados = idx.map((i) => lista[i]);
+      if (b.dataset.w === 'quitar') { if (!confirm(`¿Quitar ${idx.length} pasos?`)) return; }
+      for (let k = idx.length - 1; k >= 0; k--) lista.splice(idx[k], 1);
+      if (b.dataset.w === 'si') lista.splice(idx[0], 0, { tipo: 'si', titulo: 'Condición', condicion: { variable: '', op: 'igual' }, entonces: sacados });
+      if (b.dataset.w === 'para_cada') lista.splice(idx[0], 0, { tipo: 'para_cada', titulo: 'Por cada elemento', lista: '{{lista}}', como: 'it', pasos: sacados });
+      marcarSucio(); pintar(); $('#n-pasos').textContent = contarPasos(DEF.pasos);
+      if (b.dataset.w !== 'quitar') w.children[idx[0]].classList.remove('plegado');
+    }));
     w.appendChild(add);
   };
   pintar();
@@ -601,6 +615,7 @@ function tarjetaPaso(p, i, lista, prefijo, anidado, repintar) {
   const num = prefijo + (i + 1);
   const t = el(`<div class="paso plegado${anidado ? ' anidado' : ''}">
     <div class="cab">
+      <input type="checkbox" class="marca" data-i="${i}" title="Marcar para envolver o quitar en grupo" style="margin:0">
       <span class="num">${num}</span>
       <select class="tipo">${TIPOS.map((x) => `<option value="${x}"${x === p.tipo ? ' selected' : ''}>${DESCR[x] || x}</option>`).join('')}</select>
       <input class="titulo" placeholder="Título (opcional)" value="${esc(p.titulo || '')}">
@@ -611,6 +626,8 @@ function tarjetaPaso(p, i, lista, prefijo, anidado, repintar) {
   const cab = t.querySelector('.cab'), cuerpo = t.querySelector('.cuerpo');
   cab.onclick = (e) => { if (e.target.closest('select,input,button')) return; t.classList.toggle('plegado'); if (!t.classList.contains('plegado') && !cuerpo.childElementCount) pintarCuerpo(); };
   const actualizarResumen = () => { t.querySelector('.resumen').textContent = resumenPaso(p); $('#n-pasos').textContent = contarPasos(DEF.pasos); };
+  // Un paso que llega con condición o pasos ya definidos (grabado o envuelto) se muestra abierto para revisarlo.
+  if (p.__abrir) { delete p.__abrir; t.classList.remove('plegado'); }
   t.querySelector('.tipo').onchange = (e) => { const nuevo = nuevoPaso(e.target.value); if (p.titulo) nuevo.titulo = p.titulo; lista[i] = nuevo; marcarSucio(); repintar(); };
   t.querySelector('.titulo').oninput = (e) => { if (e.target.value) p.titulo = e.target.value; else delete p.titulo; marcarSucio(); };
   const [up, down, dup, cp, del] = t.querySelectorAll('.btns button');
@@ -926,11 +943,15 @@ function seguirGrabacion(id) {
     const etq = { solicitada: 'Esperando a un worker con ventana visible…', grabando: 'Grabando en ' + g.portal, terminada: 'Grabación terminada', cancelada: 'Cancelada', fallida: 'Falló' }[g.estado] || g.estado;
     $('#gr-estado').className = 'chip ' + (g.estado === 'grabando' ? 'bor' : g.estado === 'terminada' ? 'pub' : '');
     $('#gr-estado').innerHTML = (g.estado === 'solicitada' || g.estado === 'grabando' ? '<span class="spinner"></span>' : '') + esc(etq);
-    $('#gr-info').textContent = `${GR.pasos.length} pasos · ${g.cliente}${g.worker ? ' · ' + g.worker : ''}${g.error ? ' · ' + g.error : ''}`;
-    $('#gr-lista').innerHTML = GR.pasos.map((p, i) => `<div class="it"><span class="tag">${i + 1}</span><span class="tag">${esc(DESCR[p.tipo] || p.tipo)}</span><span class="tx">${esc(p.titulo || resumenPaso(p))}</span></div>`).join('') || '<p class="vacio" style="padding:14px">Todavía no hay acciones. Use la ventana del portal que abrió el worker.</p>';
+    $('#gr-info').textContent = `${GR.pasos.length} pasos · ${g.cliente}${g.worker ? ' · ' + g.worker : ''}${g.pausado ? ' · en pausa' : ''}${g.error ? ' · ' + g.error : ''}`;
+    const excluidos = GR.excluidos || (GR.excluidos = new Set());
+    $('#gr-lista').innerHTML = GR.pasos.map((p, i) => `<div class="it" style="cursor:default"><input type="checkbox" data-i="${i}"${excluidos.has(i) ? '' : ' checked'} title="Incluir al añadir"><span class="tag">${i + 1}</span><span class="tag">${esc(DESCR[p.tipo] || p.tipo)}</span><span class="tx" style="flex:1">${esc(p.titulo || resumenPaso(p))}</span><button class="ghost mini" data-q="${i}" title="Quitar de la grabación" style="color:var(--crit)">✕</button></div>`).join('') || '<p class="vacio" style="padding:14px">Todavía no hay acciones. Use la ventana del portal que abrió el worker.</p>';
+    $('#gr-lista').querySelectorAll('input[data-i]').forEach((c) => (c.onchange = () => { if (c.checked) excluidos.delete(Number(c.dataset.i)); else excluidos.add(Number(c.dataset.i)); }));
+    $('#gr-lista').querySelectorAll('button[data-q]').forEach((b) => (b.onclick = async () => { await api('/grabaciones/' + id + '/quitar', { method: 'POST', body: JSON.stringify({ indices: [Number(b.dataset.q)] }) }).catch((e) => mensaje(esc(e.message), 'error')); excluidos.clear(); tick(); }));
     $('#gr-lista').scrollTop = $('#gr-lista').scrollHeight;
     const activa = g.estado === 'solicitada' || g.estado === 'grabando';
     $('#gr-detener').hidden = !activa;
+    $('#gr-pausar').hidden = g.estado !== 'grabando'; $('#gr-pausar').textContent = g.pausado ? 'Reanudar' : 'Pausar';
     if (!activa) {
       clearInterval(GR.timer);
       $('#gr-fin').hidden = !GR.pasos.length;
@@ -941,10 +962,12 @@ function seguirGrabacion(id) {
   tick(); GR.timer = setInterval(tick, 2000);
 }
 $('#gr-detener').onclick = async () => { await api('/grabaciones/' + GR.id + '/detener', { method: 'POST' }).catch((e) => mensaje(esc(e.message), 'error')); };
+$('#gr-pausar').onclick = async () => { await api('/grabaciones/' + GR.id + '/pausar', { method: 'POST', body: '{}' }).catch((e) => mensaje(esc(e.message), 'error')); };
 $('#gr-cerrar').onclick = () => { clearInterval(GR.timer); modalGr.hidden = true; };
 $('#gr-agregar').onclick = () => {
   const pos = Number($('#gr-posicion').value);
-  const nuevos = GR.pasos.map((p) => { const { alternativas, ...limpio } = p; return limpio; });
+  const nuevos = GR.pasos.filter((_, i) => !(GR.excluidos && GR.excluidos.has(i))).map((p) => { const { alternativas, ...limpio } = p; return limpio; });
+  if (!nuevos.length) { mensaje('No hay pasos marcados para añadir.', 'aviso'); return; }
   DEF.pasos.splice(pos, 0, ...nuevos);
   clearInterval(GR.timer); modalGr.hidden = true; marcarSucio(); pintarPasosRaiz();
   document.querySelector('.tabs button[data-tab="pasos"]').click();

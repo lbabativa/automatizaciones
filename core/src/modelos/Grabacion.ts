@@ -18,6 +18,8 @@ const GrabacionSchema = new Schema(
     estado: { type: String, enum: ESTADOS_GRABACION, default: 'solicitada', index: true },
     /** La consola lo pone en true para que el worker cierre la grabación. */
     detener: { type: Boolean, default: false },
+    /** En pausa no se registran acciones (para navegar o iniciar sesión sin grabar). */
+    pausado: { type: Boolean, default: false },
     workerId: { type: String },
     /** Último latido del worker que la atiende; si se queda vieja, la grabación se considera huérfana. */
     ultimaSenal: { type: Date },

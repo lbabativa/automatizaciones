@@ -34,12 +34,31 @@ try {
   await page.click('text=Continuar');
   await page.click('#ficha table tr:nth-child(3) td:nth-child(2)', { modifiers: ['Alt'] }); // Alt+clic sobre "VIGENTE"
   await page.keyboard.press('Control+Shift+S');
+  // Entrega 2: gestos de espera, condición y tabla; pausa; deshacer.
+  await page.click('text=Servicios con Autorización', { modifiers: ['Shift'] }); // Shift+clic = esperar
+  await page.click('text=Servicios con Autorización', { modifiers: ['Control'] }); // Ctrl+clic = si existe
+  await page.click('text=Servicios con Autorización');
+  await page.waitForTimeout(400);
+  await page.click('#tabla td:has-text("333983714")', { modifiers: ['Alt', 'Shift'] }); // Alt+Shift+clic = leer tabla
+  await page.evaluate('window.__startiaSetPausa(true)'); // como haría el worker tras el botón Pausar
+  await page.click('text=Continuar'); // en pausa: no se graba
+  await page.evaluate('window.__startiaSetPausa(false)');
+  await page.keyboard.press('Control+Shift+Z'); // deshacer
   await page.click('#__startia_fin');
   await page.waitForTimeout(300);
 
   const tipos = grabados.map((p) => p.tipo);
   console.log('pasos grabados:', tipos.join(', '));
-  assert.deepEqual(tipos, ['seleccionar', 'clic', 'escribir', 'clic', 'seleccionar', 'clic', 'clic', 'leer', 'capturar', 'fin']);
+  assert.deepEqual(tipos, ['seleccionar', 'clic', 'escribir', 'clic', 'seleccionar', 'clic', 'clic', 'leer', 'capturar', 'esperar', 'si', 'clic', 'leer_tabla', 'deshacer', 'fin']);
+  const esperar = grabados[9], si = grabados[10], tabla = grabados[12];
+  assert.deepEqual(esperar.objetivo, { rol: 'link', nombre: 'Servicios con Autorización' });
+  assert.deepEqual(si.condicion, { existe: { rol: 'link', nombre: 'Servicios con Autorización' }, espera_ms: 3000 });
+  assert.deepEqual(si.entonces, []);
+  assert.deepEqual(tabla.objetivo, { selector: '#tabla' });
+  assert.equal(tabla.encabezados, true);
+  assert.equal(tabla.guardar_como, 'filas');
+  assert.ok(await page.locator('#__startia_pausa').isVisible() && (await page.locator('#__startia_deshacer').isVisible()), 'la barra tiene Pausar y Deshacer');
+  console.log('ok  gestos esperar, si existe, leer tabla; pausa sin grabar; deshacer');
 
   const [sel, radio, doc, buscar, comp, contrato, continuar, leer] = grabados;
   assert.deepEqual(sel.objetivo, { selector: '#prestador' });
@@ -60,6 +79,7 @@ try {
 
   // Un solo "escribir" para el documento: el Enter no lo duplica con el change posterior.
   assert.equal(tipos.filter((t) => t === 'escribir').length, 1);
+  assert.equal(tipos.filter((t) => t === 'clic').length, 5, 'el clic en pausa no se graba');
   console.log('ok  escribir + Enter sin duplicar');
 
   // Valores de prueba → plantillas.

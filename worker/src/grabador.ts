@@ -42,11 +42,38 @@ export const CODIGO_GRABADOR = `(() => {
     return e.length > 0 && e.length <= 40 ? e : '';
   };
 
+  window.__startiaPausado = false;
+  const enPausa = () => window.__startiaPausado === true;
+
   document.addEventListener('click', (e) => {
     if (e.target.closest && e.target.closest('#__startia_barra')) return;
+    if (enPausa()) return;
     const el = accionable(e.target);
     if (!el || !el.tagName) return;
     const t = el.tagName.toLowerCase();
+    // Gestos: Shift+clic = esperar; Ctrl+clic = condición "si existe"; Alt+Shift+clic = leer tabla; Alt+clic = leer valor.
+    if (e.shiftKey && !e.altKey && !e.ctrlKey) {
+      e.preventDefault(); e.stopPropagation();
+      const s = sugerir(el);
+      if (s.length) enviar({ tipo: 'esperar', objetivo: s[0], alternativas: s.slice(1, 4), titulo: tituloDe(el, 'Esperar') });
+      return;
+    }
+    if (e.ctrlKey && !e.altKey && !e.shiftKey) {
+      e.preventDefault(); e.stopPropagation();
+      const s = sugerir(el);
+      if (s.length) enviar({ tipo: 'si', condicion: { existe: s[0], espera_ms: 3000 }, entonces: [], alternativas: s.slice(1, 4), titulo: tituloDe(el, 'Si aparece') });
+      return;
+    }
+    if (e.altKey && e.shiftKey) {
+      e.preventDefault(); e.stopPropagation();
+      const tabla = el.closest('table');
+      if (!tabla) return;
+      const s = sugerir(tabla);
+      const cab = Array.from(tabla.querySelectorAll('th')).map((x) => limpiar(x.textContent)).filter(Boolean).slice(0, 2).join(' ');
+      const objetivo = s[0] || (cab ? { selector: 'table', con_texto: cab } : { selector: 'table' });
+      enviar({ tipo: 'leer_tabla', guardar_como: 'filas', objetivo, encabezados: tabla.querySelectorAll('th').length > 0, alternativas: s.slice(1, 4), titulo: 'Leer tabla' + (cab ? ' ' + cab : '') });
+      return;
+    }
     if (e.altKey) {
       e.preventDefault(); e.stopPropagation();
       const etiqueta = etiquetaLectura(el);
@@ -71,7 +98,7 @@ export const CODIGO_GRABADOR = `(() => {
 
   document.addEventListener('change', (e) => {
     const el = e.target;
-    if (!el || !el.tagName) return;
+    if (!el || !el.tagName || enPausa()) return;
     const t = el.tagName.toLowerCase();
     if (t === 'select') {
       const op = el.options[el.selectedIndex];
@@ -87,7 +114,10 @@ export const CODIGO_GRABADOR = `(() => {
   }, true);
 
   document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.shiftKey && (e.key === 'P' || e.key === 'p')) { e.preventDefault(); enviar({ tipo: 'pausa', pausado: !enPausa() }); return; }
+    if (enPausa()) return;
     if (e.ctrlKey && e.shiftKey && (e.key === 'S' || e.key === 's')) { e.preventDefault(); enviar({ tipo: 'capturar', nombre: 'captura', titulo: 'Captura de pantalla' }); return; }
+    if (e.ctrlKey && e.shiftKey && (e.key === 'Z' || e.key === 'z')) { e.preventDefault(); enviar({ tipo: 'deshacer' }); return; }
     if (e.key === 'Enter' && textual(e.target)) {
       const el = e.target;
       const s = sugerir(el);
@@ -101,11 +131,25 @@ export const CODIGO_GRABADOR = `(() => {
     const b = document.createElement('div');
     b.id = '__startia_barra';
     b.style.cssText = 'position:fixed;top:8px;right:8px;z-index:2147483647;background:#0f7b86;color:#fff;font:13px/1.3 "Segoe UI",system-ui,sans-serif;border-radius:8px;padding:8px 10px;box-shadow:0 4px 16px rgba(0,0,0,.35);display:flex;gap:10px;align-items:center';
-    b.innerHTML = '<span style="width:9px;height:9px;border-radius:50%;background:#ff5a5a;display:inline-block"></span><span id="__startia_n">Grabando StartIA · 0 pasos</span><small style="opacity:.85">Alt+clic = leer · Ctrl+Shift+S = captura</small><button id="__startia_fin" style="background:#fff;color:#0f7b86;border:0;border-radius:6px;padding:4px 10px;font-weight:700;cursor:pointer">Detener</button>';
+    const btn = 'background:#fff;color:#0f7b86;border:0;border-radius:6px;padding:4px 10px;font-weight:700;cursor:pointer';
+    b.innerHTML = '<span id="__startia_punto" style="width:9px;height:9px;border-radius:50%;background:#ff5a5a;display:inline-block"></span><span id="__startia_n">Grabando StartIA · 0 pasos</span>'
+      + '<small style="opacity:.85" title="Alt+clic: leer valor · Alt+Shift+clic: leer tabla · Shift+clic: esperar · Ctrl+clic: si aparece · Ctrl+Shift+S: captura · Ctrl+Shift+Z: deshacer · Ctrl+Shift+P: pausa">gestos ⓘ</small>'
+      + '<button id="__startia_deshacer" style="' + btn + '" title="Quitar el último paso (Ctrl+Shift+Z)">↶</button>'
+      + '<button id="__startia_pausa" style="' + btn + '" title="Pausar o reanudar (Ctrl+Shift+P)">Pausar</button>'
+      + '<button id="__startia_fin" style="' + btn + '">Detener</button>';
     document.body.appendChild(b);
     document.getElementById('__startia_fin').addEventListener('click', (e) => { e.stopPropagation(); enviar({ tipo: 'fin' }); });
+    document.getElementById('__startia_deshacer').addEventListener('click', (e) => { e.stopPropagation(); enviar({ tipo: 'deshacer' }); });
+    document.getElementById('__startia_pausa').addEventListener('click', (e) => { e.stopPropagation(); enviar({ tipo: 'pausa', pausado: !enPausa() }); });
   };
-  window.__startiaContador = (n) => { pintarBarra(); const s = document.getElementById('__startia_n'); if (s) s.textContent = 'Grabando StartIA · ' + n + ' pasos'; };
+  window.__startiaContador = (n) => { pintarBarra(); const s = document.getElementById('__startia_n'); if (s) s.textContent = (enPausa() ? 'En pausa · ' : 'Grabando StartIA · ') + n + ' pasos'; };
+  // El worker es la fuente de verdad del estado de pausa (la consola también puede cambiarlo).
+  window.__startiaSetPausa = (p) => {
+    window.__startiaPausado = !!p; pintarBarra();
+    const b = document.getElementById('__startia_pausa'); if (b) b.textContent = p ? 'Reanudar' : 'Pausar';
+    const d = document.getElementById('__startia_punto'); if (d) d.style.background = p ? '#ffc94d' : '#ff5a5a';
+    const barra = document.getElementById('__startia_barra'); if (barra) barra.style.background = p ? '#6b778c' : '#0f7b86';
+  };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pintarBarra); else pintarBarra();
 })();`;
 
@@ -169,6 +213,19 @@ export async function grabar(g: GrabacionDoc, log: (m: string) => void): Promise
         activa.fin = true;
         return;
       }
+      if (paso.tipo === 'pausa') {
+        await Grabacion.updateOne({ _id: activa.id }, { $set: { pausado: Boolean(paso.pausado) } }).catch(() => undefined);
+        log(`grabación ${String(activa.id).slice(-6)}: ${paso.pausado ? 'en pausa' : 'reanudada'}`);
+        return;
+      }
+      if (paso.tipo === 'deshacer') {
+        if (activa.n > 0) {
+          await Grabacion.updateOne({ _id: activa.id }, { $pop: { pasos: 1 } }).catch(() => undefined);
+          activa.n--;
+          log(`grabación ${String(activa.id).slice(-6)}: último paso quitado (${activa.n} quedan)`);
+        }
+        return;
+      }
       const normal = normalizarPaso(paso, activa.parametros);
       activa.n++;
       await Grabacion.updateOne({ _id: activa.id }, { $push: { pasos: normal } }).catch(() => undefined);
@@ -195,9 +252,11 @@ export async function grabar(g: GrabacionDoc, log: (m: string) => void): Promise
     while (!grabacionActiva.fin && !cerrada && Date.now() < limite) {
       await new Promise((r) => setTimeout(r, 1500));
       // Latido: la consola sabe que este worker sigue atendiendo la grabación.
-      const doc = await Grabacion.findOneAndUpdate({ _id: id }, { $set: { ultimaSenal: new Date() } }, { new: true }).select('detener').lean<{ detener?: boolean }>();
+      const doc = await Grabacion.findOneAndUpdate({ _id: id }, { $set: { ultimaSenal: new Date() } }, { new: true }).select('detener pausado').lean<{ detener?: boolean; pausado?: boolean }>();
       if (doc?.detener) break;
-      for (const p of ctx.pages()) await p.evaluate(`window.__startiaContador && window.__startiaContador(${grabacionActiva.n})`).catch(() => undefined);
+      for (const p of ctx.pages()) {
+        await p.evaluate(`window.__startiaSetPausa && window.__startiaSetPausa(${doc?.pausado ? 'true' : 'false'}); window.__startiaContador && window.__startiaContador(${grabacionActiva.n})`).catch(() => undefined);
+      }
     }
     await guardarSesion(cliente.slug, g.portal, ctx, 'manual').catch(() => undefined);
     for (const p of ctx.pages()) await p.evaluate("const b = document.getElementById('__startia_barra'); if (b) b.remove(); window.__startiaGrabando = false;").catch(() => undefined);

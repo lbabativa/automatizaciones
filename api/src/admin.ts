@@ -595,6 +595,7 @@ const presentarGrabacion = (g: GrabacionDoc) => ({
   url: g.urlInicio,
   estado: g.estado,
   detener: g.detener,
+  pausado: Boolean(g.pausado),
   worker: g.workerId ?? null,
   pasos: g.pasos ?? [],
   error: g.error ?? null,
@@ -665,6 +666,41 @@ admin.post('/api/grabaciones/:id/detener', async (c) => {
   }
   await Grabacion.updateOne({ _id: id }, { $set: { detener: true } });
   return c.json({ ok: true, estado: g.estado });
+});
+
+/** Pausa o reanuda la grabación desde la consola (el worker lo refleja en la ventana). */
+admin.post('/api/grabaciones/:id/pausar', async (c) => {
+  const id = c.req.param('id');
+  if (!mongoose.isValidObjectId(id)) return c.json({ error: 'ID_INVALIDO' }, 400);
+  let cuerpo: { pausado?: boolean } = {};
+  try {
+    cuerpo = await c.req.json();
+  } catch {
+    /* sin cuerpo: alternar */
+  }
+  const g = await Grabacion.findById(id).lean<GrabacionDoc>();
+  if (!g) return c.json({ error: 'NO_ENCONTRADA' }, 404);
+  const pausado = typeof cuerpo.pausado === 'boolean' ? cuerpo.pausado : !g.pausado;
+  await Grabacion.updateOne({ _id: id }, { $set: { pausado } });
+  return c.json({ ok: true, pausado });
+});
+
+/** Quita pasos grabados por posición (antes de añadirlos al borrador). */
+admin.post('/api/grabaciones/:id/quitar', async (c) => {
+  const id = c.req.param('id');
+  if (!mongoose.isValidObjectId(id)) return c.json({ error: 'ID_INVALIDO' }, 400);
+  let cuerpo: { indices?: number[] };
+  try {
+    cuerpo = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON_INVALIDO' }, 400);
+  }
+  const g = await Grabacion.findById(id).lean<GrabacionDoc>();
+  if (!g) return c.json({ error: 'NO_ENCONTRADA' }, 404);
+  const quitar = new Set((cuerpo.indices ?? []).map(Number));
+  const pasos = (g.pasos ?? []).filter((_, i) => !quitar.has(i));
+  await Grabacion.updateOne({ _id: id }, { $set: { pasos } });
+  return c.json({ ok: true, pasos: pasos.length });
 });
 
 /** Habilita o deshabilita un módulo (en código o flujo) para un cliente, conservando su config. */
