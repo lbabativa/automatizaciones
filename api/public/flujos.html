@@ -135,11 +135,11 @@ pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;pad
 .visor .caja.sel{border:2px solid var(--crit);background:rgba(178,58,58,.15);z-index:3}
 .lado{display:flex;flex-direction:column;min-height:0;gap:8px}
 .lado .lista{flex:1;overflow:auto;border:1px solid var(--line);border-radius:8px;font-size:12.5px}
-.lado .lista div.it{padding:6px 8px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;gap:6px;align-items:baseline}
-.lado .lista div.it:hover,.lado .lista div.it.hover{background:var(--paper-2)}
-.lado .lista div.it.sel{background:var(--accent-soft)}
-.lado .lista .tag{font-family:var(--mono);font-size:11px;color:var(--muted);min-width:44px}
-.lado .lista .tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lista div.it{padding:6px 8px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;gap:8px;align-items:baseline}
+.lista div.it:hover,.lista div.it.hover{background:var(--paper-2)}
+.lista div.it.sel{background:var(--accent-soft)}
+.lista .tag{font-family:var(--mono);font-size:11px;color:var(--muted);min-width:44px;white-space:nowrap}
+.lista .tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sugerencias{border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--paper-2)}
 .sugerencias h4{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .sugerencias .sg{display:flex;gap:6px;align-items:center;margin:4px 0}
@@ -157,7 +157,7 @@ pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;pad
 <body>
 <header>
   <div class="marca"><div class="logo">S</div><div><b>Consola StartIA</b><small>Automatizaciones</small></div></div>
-  <nav><a class="chip" href="/admin">Consultas</a><a class="chip" style="background:var(--accent-soft);color:var(--accent-ink)">Flujos</a></nav>
+  <nav><a class="chip" href="/admin">Consultas</a><a class="chip" style="background:var(--accent-soft);color:var(--accent-ink)">Flujos</a><a class="chip" href="/admin/clientes">Clientes</a></nav>
   <div class="der"><span id="usuario" class="mono"></span><button class="ghost" id="btn-salir">Salir</button></div>
 </header>
 

@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clientes · Consola StartIA</title>
+<style>
+:root{
+  --ground:#f3f5f8; --paper:#fff; --paper-2:#eef1f6; --ink:#152238; --ink-2:#3e4c63;
+  --muted:#6b778c; --line:#dde2ea; --line-2:#c3cbd8; --accent:#0f7b86; --accent-ink:#0b5d66;
+  --accent-soft:#ddf0f2; --ok:#2e7d4f; --ok-soft:#e1f2e7; --warn:#a9641a; --warn-soft:#fbebd5;
+  --crit:#b23a3a; --crit-soft:#f7e0e0; --shadow:0 1px 2px rgba(21,34,56,.06),0 8px 24px -12px rgba(21,34,56,.18);
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace; --sans:"Segoe UI",system-ui,ui-sans-serif,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --ground:#0e1524; --paper:#161f31; --paper-2:#1d2839; --ink:#e8edf5; --ink-2:#c0cadb;
+  --muted:#8a97ac; --line:#2a3649; --line-2:#3a475c; --accent:#4cc1ca; --accent-ink:#8fdde3;
+  --accent-soft:#12303a; --ok:#6ccb92; --ok-soft:#173225; --warn:#e3a45a; --warn-soft:#3a2a14;
+  --crit:#f08585; --crit-soft:#3a1c1c; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);
+}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:14.5px;line-height:1.45}
+a{color:var(--accent-ink)}
+[hidden]{display:none!important}
+button{font:inherit;font-weight:600;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:8px;padding:8px 14px;cursor:pointer;white-space:nowrap}
+button.sec{background:transparent;color:var(--accent-ink)}
+button.ghost{background:transparent;color:var(--muted);border-color:transparent;padding:4px 8px}
+button.ghost:hover{color:var(--ink);background:var(--paper-2)}
+button.peligro{background:transparent;color:var(--crit);border-color:var(--crit)}
+button.mini{padding:3px 8px;font-size:12px;border-radius:6px}
+button:disabled{opacity:.5;cursor:default}
+label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-2);margin:10px 0 4px}
+label .op{font-weight:400;color:var(--muted)}
+select,input,textarea{width:100%;font:inherit;background:var(--paper);color:var(--ink);border:1px solid var(--line-2);border-radius:7px;padding:7px 10px}
+select:focus,input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+textarea{font-family:var(--mono);font-size:12.5px;min-height:60px;resize:vertical}
+input[type=checkbox]{width:auto;margin-right:6px;vertical-align:-1px}
+.ayuda{font-size:12px;color:var(--muted);margin:3px 0 0}
+.mono{font-family:var(--mono);font-size:12.5px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--paper-2);color:var(--ink-2);text-decoration:none}
+.chip.ok{background:var(--ok-soft);color:var(--ok)} .chip.warn{background:var(--warn-soft);color:var(--warn)} .chip.crit{background:var(--crit-soft);color:var(--crit)}
+.error{background:var(--crit-soft);color:var(--crit);border-radius:8px;padding:10px 12px;font-size:13px;margin-top:10px;white-space:pre-wrap}
+.aviso{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:10px 12px;font-size:13px;margin-top:10px}
+.exito{background:var(--ok-soft);color:var(--ok);border-radius:8px;padding:8px 12px;font-size:13px;margin-top:10px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+header{background:var(--paper);border-bottom:1px solid var(--line);padding:10px 20px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:5}
+.marca{display:flex;align-items:center;gap:10px}
+.marca .logo{width:32px;height:32px;border-radius:8px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800}
+.marca b{font-size:16px} .marca small{display:block;color:var(--muted);font-size:12px}
+header nav{display:flex;gap:4px;margin-left:10px}
+header .der{margin-left:auto;display:flex;gap:12px;align-items:center;font-size:13px;color:var(--muted)}
+.app{display:grid;grid-template-columns:280px 1fr;min-height:calc(100% - 54px)}
+aside{border-right:1px solid var(--line);background:var(--paper);padding:14px}
+aside h2{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 10px;display:flex;align-items:center}
+aside h2 button{margin-left:auto}
+.item{padding:9px 10px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+.item:hover{background:var(--paper-2)} .item.sel{background:var(--accent-soft);border-color:var(--accent)}
+.item b{display:block;font-size:13.5px} .item small{color:var(--muted);font-size:12px}
+.editor{padding:18px 22px;max-width:1100px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow);margin-bottom:16px}
+.card h3{margin:0 0 4px;font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.barra{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.barra h1{font-size:19px;margin:0}
+.barra .acciones{margin-left:auto;display:flex;gap:8px}
+.portal{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-top:10px}
+.portal .cab{display:flex;align-items:center;gap:8px}
+.portal .cab b{font-family:var(--mono)}
+.campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.modulo{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.modulo .n{flex:1} .modulo .n small{display:block;color:var(--muted)}
+.modulo input.cfg{flex:1.2;font-family:var(--mono);font-size:12.5px}
+.clave{font-family:var(--mono);font-size:13px;background:var(--paper-2);border:1px dashed var(--line-2);border-radius:8px;padding:10px 12px;word-break:break-all}
+.vacio{color:var(--muted);font-size:13px;padding:24px;text-align:center}
+.modal-fondo{position:fixed;inset:0;background:rgba(10,20,40,.45);display:grid;place-items:center;z-index:20}
+.modal{background:var(--paper);border-radius:12px;padding:20px;width:min(520px,92vw);box-shadow:var(--shadow)}
+.modal h3{margin:0 0 6px}
+</style>
+</head>
+<body>
+<header>
+  <div class="marca"><div class="logo">S</div><div><b>Consola StartIA</b><small>Automatizaciones</small></div></div>
+  <nav><a class="chip" href="/admin">Consultas</a><a class="chip" href="/admin/flujos">Flujos</a><a class="chip" style="background:var(--accent-soft);color:var(--accent-ink)">Clientes</a></nav>
+  <div class="der"><span id="usuario" class="mono"></span><button class="ghost" id="btn-salir">Salir</button></div>
+</header>
+
+<div class="app">
+  <aside>
+    <h2>Clientes <button class="mini sec" id="btn-nuevo">+ Nuevo</button></h2>
+    <div id="lista"></div>
+    <p class="ayuda" style="margin-top:14px">Cada cliente tiene su clave de API, sus credenciales por portal y sus automatizaciones habilitadas. Las credenciales se cifran aquí con la clave pública del worker: la consola no puede leerlas.</p>
+  </aside>
+
+  <main class="editor">
+    <div id="sin-cliente" class="vacio">Elija un cliente o cree uno nuevo.</div>
+    <div id="ed" hidden>
+      <div class="barra"><h1 id="ed-nombre"></h1><span id="ed-estado" class="chip"></span><div class="acciones"><button class="ghost" id="btn-eliminar" style="color:var(--crit)">Eliminar</button></div></div>
+      <div id="ed-msg"></div>
+
+      <div class="card">
+        <h3>Datos</h3>
+        <div class="row">
+          <div><label>Identificador</label><input id="c-slug" class="mono" disabled></div>
+          <div><label>Nombre</label><input id="c-nombre"></div>
+          <div><label>NIT <span class="op">(opcional)</span></label><input id="c-nit"></div>
+          <div><label>Estado</label><select id="c-activo"><option value="true">Activo</option><option value="false">Inactivo (rechaza consultas)</option></select></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px"><button id="btn-guardar">Guardar datos</button></div>
+      </div>
+
+      <div class="card">
+        <h3>Clave de API</h3>
+        <p class="ayuda">Con esta clave el sistema del cliente llama a la API (<span class="mono">x-api-key</span>). Solo se guarda su huella: si se pierde, hay que generar otra.</p>
+        <div id="c-clave" style="margin-top:8px"></div>
+        <div style="display:flex;gap:8px;margin-top:10px"><button class="sec" id="btn-rotar">Generar clave nueva</button></div>
+      </div>
+
+      <div class="card">
+        <h3>Credenciales por portal</h3>
+        <p class="ayuda">Usuario y contraseña con los que el robot entra a cada portal <b>para este cliente</b>. Los flujos las usan como <span class="mono">{{credenciales.usuario}}</span> y <span class="mono">{{credenciales.password}}</span>, sin saber de qué cliente son. Deje un campo vacío para conservar el valor guardado.</p>
+        <div id="c-portales"></div>
+        <div id="sin-clave" class="aviso" hidden>Ningún worker ha publicado todavía su clave pública. Arranque el worker una vez (con la MASTER_KEY) y esta pantalla podrá guardar credenciales.</div>
+        <div class="agregar" style="display:flex;gap:8px;align-items:center;margin-top:12px"><input id="c-portal-nuevo" class="mono" placeholder="otro portal (ej. bancolombia)" style="width:240px"><button class="mini sec" id="btn-portal">+ Portal</button></div>
+      </div>
+
+      <div class="card">
+        <h3>Automatizaciones habilitadas</h3>
+        <p class="ayuda">Qué puede ejecutar este cliente y con qué configuración propia (por ejemplo el código de prestador en Sanitas), en JSON.</p>
+        <div id="c-modulos"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="modal-nuevo" class="modal-fondo" hidden>
+  <form class="modal" id="form-nuevo">
+    <h3>Cliente nuevo</h3>
+    <label>Identificador (minúsculas y guiones)</label><input id="n-slug" class="mono" pattern="[a-z][a-z0-9-]{1,40}" required placeholder="clinica-norte">
+    <label>Nombre</label><input id="n-nombre" required placeholder="Clínica Norte SAS">
+    <label>NIT <span class="op">(opcional)</span></label><input id="n-nit">
+    <div id="n-error" class="error" hidden></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button type="button" class="ghost" id="n-cancelar">Cancelar</button><button type="submit">Crear</button></div>
+  </form>
+</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+let CLIENTES = [], PORTALES = [], MODULOS = [], HAY_CLAVE = false, SEL = null;
+
+async function api(ruta, opciones = {}) {
+  const r = await fetch('/admin/api' + ruta, { ...opciones, credentials: 'same-origin', headers: { 'content-type': 'application/json', ...(opciones.headers || {}) } });
+  if (r.status === 401) { location.href = '/admin'; throw new Error('NO_AUTENTICADO'); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.mensaje || j.error || ('Error ' + r.status)); e.codigo = j.error; throw e; }
+  return j;
+}
+function mensaje(html, clase = 'exito') { $('#ed-msg').innerHTML = html ? `<div class="${clase}">${html}</div>` : ''; if (html && clase === 'exito') setTimeout(() => { if ($('#ed-msg').innerHTML.includes(html)) $('#ed-msg').innerHTML = ''; }, 4000); }
+
+async function cargar(seleccionar) {
+  const [{ clientes }, { portales, clavePublica }, estado] = await Promise.all([api('/clientes'), api('/portales'), api('/estado')]);
+  CLIENTES = clientes; PORTALES = portales; HAY_CLAVE = clavePublica; MODULOS = estado.modulos || [];
+  $('#lista').innerHTML = clientes.map((c) => `<div class="item${SEL === c.slug ? ' sel' : ''}" data-s="${esc(c.slug)}"><b>${esc(c.nombre)}</b><small>${esc(c.slug)} · ${c.modulos.filter((m) => m.activo).length} automatizaciones · ${Object.keys(c.credenciales || {}).length} portales</small></div>`).join('') || '<p class="ayuda">Aún no hay clientes.</p>';
+  $('#lista').querySelectorAll('.item').forEach((it) => (it.onclick = () => abrir(it.dataset.s)));
+  if (seleccionar) abrir(seleccionar); else if (SEL) abrir(SEL);
+}
+
+function abrir(slug) {
+  const c = CLIENTES.find((x) => x.slug === slug);
+  if (!c) return;
+  SEL = slug;
+  $('#lista').querySelectorAll('.item').forEach((it) => it.classList.toggle('sel', it.dataset.s === slug));
+  $('#sin-cliente').hidden = true; $('#ed').hidden = false; mensaje('');
+  $('#ed-nombre').textContent = c.nombre;
+  $('#ed-estado').className = 'chip ' + (c.activo ? 'ok' : 'crit'); $('#ed-estado').textContent = c.activo ? 'activo' : 'inactivo';
+  $('#c-slug').value = c.slug; $('#c-nombre').value = c.nombre; $('#c-nit').value = c.nit || ''; $('#c-activo').value = String(c.activo);
+  $('#c-clave').innerHTML = `<span class="mono">${esc(c.apiKeyPrefijo || 'rpa_' + c.slug + '_')}••••••••••••</span>`;
+  pintarPortales(c); pintarModulos(c);
+}
+
+function pintarPortales(c) {
+  const box = $('#c-portales'); box.innerHTML = '';
+  $('#sin-clave').hidden = HAY_CLAVE;
+  const nombres = [...new Set([...PORTALES.map((p) => p.portal), ...Object.keys(c.credenciales || {})])].sort();
+  if (!nombres.length) { box.innerHTML = '<p class="ayuda">Todavía no hay portales: se crean con el primer flujo o abajo.</p>'; return; }
+  for (const portal of nombres) {
+    const def = PORTALES.find((p) => p.portal === portal);
+    const guardados = (c.credenciales || {})[portal] || [];
+    const campos = [...new Set([...(def?.campos || []), ...guardados, ...(def?.campos?.length || guardados.length ? [] : ['usuario', 'password'])])];
+    const w = document.createElement('div'); w.className = 'portal';
+    w.innerHTML = `<div class="cab"><b>${esc(portal)}</b>${guardados.length ? `<span class="chip ok">${guardados.length} campos guardados</span>` : '<span class="chip warn">sin credenciales</span>'}<span style="flex:1"></span><button class="ghost mini quitar" ${guardados.length ? '' : 'hidden'}>Quitar</button></div>
+      <div class="campos">${campos.map((k) => `<div><label>${esc(k)} ${guardados.includes(k) ? '<span class="op">(guardado)</span>' : ''}</label><input data-k="${esc(k)}" type="${/pass|clave|secret|token|pin/i.test(k) ? 'password' : 'text'}" autocomplete="off" placeholder="${guardados.includes(k) ? '•••••• (sin cambios)' : ''}"></div>`).join('')}
+      <div><label>Otro campo <span class="op">(nombre=valor)</span></label><input class="extra mono" placeholder="empresa=123"></div></div>
+      <div style="display:flex;gap:8px;margin-top:10px;align-items:center"><button class="mini guardar"${HAY_CLAVE ? '' : ' disabled'}>Guardar credenciales de ${esc(portal)}</button><span class="ayuda msg"></span></div>`;
+    w.querySelector('.guardar').onclick = async () => {
+      const cuerpo = {};
+      w.querySelectorAll('[data-k]').forEach((i) => { if (i.value !== '') cuerpo[i.dataset.k] = i.value; });
+      const extra = w.querySelector('.extra').value.trim();
+      if (extra.includes('=')) cuerpo[extra.split('=')[0].trim()] = extra.split('=').slice(1).join('=');
+      if (!Object.keys(cuerpo).length) { w.querySelector('.msg').textContent = 'No hay valores nuevos.'; return; }
+      try { const r = await api(`/clientes/${c.slug}/credenciales/${portal}`, { method: 'PUT', body: JSON.stringify(cuerpo) }); w.querySelector('.msg').textContent = 'Guardado: ' + r.campos.join(', ') + '. La sesión del portal se pedirá de nuevo.'; await cargar(); }
+      catch (e) { w.querySelector('.msg').textContent = e.message; }
+    };
+    w.querySelector('.quitar').onclick = async () => { if (!confirm(`¿Quitar las credenciales de ${portal} para ${c.nombre}?`)) return; try { await api(`/clientes/${c.slug}/credenciales/${portal}`, { method: 'DELETE' }); await cargar(); } catch (e) { mensaje(esc(e.message), 'error'); } };
+    box.appendChild(w);
+  }
+}
+$('#btn-portal').onclick = () => {
+  const p = $('#c-portal-nuevo').value.trim().toLowerCase();
+  if (!/^[a-z][a-z0-9-]*$/.test(p)) return mensaje('El portal va en minúsculas, números y guiones.', 'aviso');
+  if (!PORTALES.some((x) => x.portal === p)) PORTALES.push({ portal: p, campos: ['usuario', 'password'] });
+  $('#c-portal-nuevo').value = '';
+  pintarPortales(CLIENTES.find((x) => x.slug === SEL));
+};
+
+function pintarModulos(c) {
+  const box = $('#c-modulos'); box.innerHTML = '';
+  if (!MODULOS.length) { box.innerHTML = '<p class="ayuda">No hay automatizaciones publicadas.</p>'; return; }
+  for (const m of MODULOS) {
+    const propio = c.modulos.find((x) => x.nombre === m.nombre);
+    const fila = document.createElement('div'); fila.className = 'modulo';
+    fila.innerHTML = `<label style="margin:0"><input type="checkbox"${propio && propio.activo ? ' checked' : ''}></label><div class="n"><b>${esc(m.descripcion || m.nombre)}</b><small class="mono">${esc(m.nombre)} · portal ${esc(m.portal)} · ${m.origen === 'flujo' ? 'flujo' : 'código'}</small></div><input class="cfg" placeholder='config JSON, ej. {"prestadorCodigo":"176805"}' value="${esc(propio ? JSON.stringify(propio.config || {}) : '')}"><button class="mini sec">Guardar</button>`;
+    const chk = fila.querySelector('input[type=checkbox]'), cfg = fila.querySelector('.cfg'), btn = fila.querySelector('button');
+    const guardar = async () => {
+      let config; try { config = cfg.value.trim() ? JSON.parse(cfg.value) : undefined; } catch { return mensaje('La configuración debe ser JSON válido.', 'aviso'); }
+      try { await api(`/clientes/${c.slug}/modulos/${m.nombre}`, { method: 'PUT', body: JSON.stringify({ activo: chk.checked, ...(config !== undefined ? { config } : {}) }) }); mensaje(`${m.nombre}: ${chk.checked ? 'habilitado' : 'deshabilitado'}.`); await cargar(); }
+      catch (e) { mensaje(esc(e.message), 'error'); }
+    };
+    chk.onchange = guardar; btn.onclick = guardar;
+    box.appendChild(fila);
+  }
+}
+
+$('#btn-guardar').onclick = async () => {
+  try { await api('/clientes/' + SEL, { method: 'PUT', body: JSON.stringify({ nombre: $('#c-nombre').value, nit: $('#c-nit').value, activo: $('#c-activo').value === 'true' }) }); mensaje('Datos guardados.'); await cargar(); }
+  catch (e) { mensaje(esc(e.message), 'error'); }
+};
+$('#btn-rotar').onclick = async () => {
+  if (!confirm('La clave actual dejará de funcionar de inmediato. ¿Generar una nueva?')) return;
+  try { const { apiKey } = await api(`/clientes/${SEL}/rotar-clave`, { method: 'POST' }); $('#c-clave').innerHTML = `<div class="clave">${esc(apiKey)}</div><p class="ayuda">Cópiela ahora: no se vuelve a mostrar.</p>`; }
+  catch (e) { mensaje(esc(e.message), 'error'); }
+};
+$('#btn-eliminar').onclick = async () => {
+  if (!confirm(`¿Eliminar el cliente ${SEL} con sus credenciales y sesiones? El historial de consultas se conserva.`)) return;
+  try { await api('/clientes/' + SEL, { method: 'DELETE' }); SEL = null; $('#ed').hidden = true; $('#sin-cliente').hidden = false; await cargar(); }
+  catch (e) { mensaje(esc(e.message), 'error'); }
+};
+$('#btn-nuevo').onclick = () => { $('#modal-nuevo').hidden = false; $('#n-error').hidden = true; $('#n-slug').focus(); };
+$('#n-cancelar').onclick = () => ($('#modal-nuevo').hidden = true);
+$('#form-nuevo').onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    const r = await api('/clientes', { method: 'POST', body: JSON.stringify({ slug: $('#n-slug').value.trim(), nombre: $('#n-nombre').value.trim(), nit: $('#n-nit').value.trim() }) });
+    $('#modal-nuevo').hidden = true; $('#form-nuevo').reset();
+    await cargar(r.slug);
+    $('#c-clave').innerHTML = `<div class="clave">${esc(r.apiKey)}</div><p class="ayuda">Clave de API del cliente. Cópiela ahora: no se vuelve a mostrar.</p>`;
+    mensaje('Cliente creado. Ahora cargue sus credenciales por portal y habilite sus automatizaciones.');
+  } catch (err) { $('#n-error').hidden = false; $('#n-error').textContent = err.message; }
+};
+$('#btn-salir').onclick = async () => { await api('/logout', { method: 'POST' }).catch(() => {}); location.href = '/admin'; };
+(async () => { try { const { usuario } = await api('/yo'); $('#usuario').textContent = usuario; await cargar(new URLSearchParams(location.search).get('c')); } catch { /* api() redirige */ } })();
+</script>
+</body>
+</html>

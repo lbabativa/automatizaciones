@@ -24,6 +24,7 @@
     "flujo:importar": "tsx core/scripts/flujo-importar.ts",
     "test:flujos": "tsx core/test/interprete.test.ts",
     "test:grabador": "tsx worker/test/grabador.test.ts",
+    "test:crypto": "tsx core/test/crypto.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

@@ -8,8 +8,10 @@
 import {
   agregarCaptura,
   anotar,
+  clavePublicaWorker,
   Cliente,
   completar,
+  Configuracion,
   conectarDb,
   descifrar,
   env,
@@ -142,6 +144,8 @@ async function notificar(trabajo: TrabajoDoc, estado: 'completado' | 'fallido', 
 
 async function principal(): Promise<void> {
   await conectarDb();
+  // Clave pública derivada de MASTER_KEY: con ella la consola cifra credenciales que solo el worker puede leer.
+  await Configuracion.updateOne({ clave: 'clavePublica' }, { $set: { valor: clavePublicaWorker(), actualizadoPor: WORKER_ID } }, { upsert: true });
   let modulosSoportados = await nombresModulosSoportados();
   log(`Worker listo. Módulos en código: ${Object.keys(registro).join(', ')}. Flujos publicados: ${modulosSoportados.filter((m) => !registro[m]).join(', ') || 'ninguno'}. Headless: ${HEADLESS}`);
   let ultimoRescate = 0;

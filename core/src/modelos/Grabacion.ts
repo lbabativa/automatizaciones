@@ -19,6 +19,8 @@ const GrabacionSchema = new Schema(
     /** La consola lo pone en true para que el worker cierre la grabación. */
     detener: { type: Boolean, default: false },
     workerId: { type: String },
+    /** Último latido del worker que la atiende; si se queda vieja, la grabación se considera huérfana. */
+    ultimaSenal: { type: Date },
     /** Pasos en formato del flujo, en orden. `alternativas` trae otros objetivos posibles para el mismo elemento. */
     pasos: { type: [Schema.Types.Mixed], default: [] },
     error: { type: String },

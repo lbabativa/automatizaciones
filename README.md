@@ -198,3 +198,9 @@ En cada prueba lanzada desde el editor, el worker guarda además de la captura l
 Desde el editor, **⏺ Grabar** pide a un worker con ventana visible (`HEADLESS=false`, el del PC de la clínica) que abra el portal con la sesión del cliente. Lo que la persona hace en esa ventana se convierte en pasos: clics (`clic`), texto (`escribir`, con `tecla: Enter` si se confirmó así), listas (`seleccionar`). Alt+clic sobre un dato crea un paso `leer` con su etiqueta detectada; Ctrl+Shift+S crea una `capturar`. Los valores de prueba indicados al iniciar quedan en los pasos como `{{parametro}}`. Se termina con "Detener" en la barra flotante de la ventana o desde la consola, y los pasos se añaden al borrador en la posición elegida. Cada paso trae `alternativas` con otros objetivos posibles, por si el sugerido no es estable.
 
 `npm run test:grabador` prueba el grabador contra el portal falso con acciones simuladas.
+
+### Clientes desde la consola
+
+En `/admin/clientes` se crean clientes, se genera o rota su clave de API, se habilitan automatizaciones con su configuración propia y se cargan las **credenciales por portal**. Un flujo nunca lleva usuario ni contraseña: usa `{{credenciales.usuario}}` y `{{credenciales.password}}`, y el worker las toma del cliente para el que ejecuta.
+
+Las credenciales que se guardan desde la consola se cifran con la **clave pública del worker** (X25519 + AES-256-GCM, formato `v2.`), derivada de `MASTER_KEY` y publicada por el worker al arrancar en la colección `configuracion`. La API en Vercel puede cifrar pero nunca descifrar; el worker descifra tanto este formato como el simétrico clásico de los scripts. Por eso, antes de cargar credenciales desde la web, hay que haber arrancado el worker al menos una vez.

@@ -13,8 +13,12 @@ import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  cifrarConClavePublica,
   Cliente,
+  Configuracion,
   encolar,
+  generarApiKey,
+  hashApiKey,
   env,
   esperarResultado,
   esquemaParametros,
@@ -117,6 +121,10 @@ admin.get('/flujos', async (c) => {
   const html = await leerPagina('flujos.html');
   return html ? c.html(html) : c.text('No se encontró api/public/flujos.html', 500);
 });
+admin.get('/clientes', async (c) => {
+  const html = await leerPagina('clientes.html');
+  return html ? c.html(html) : c.text('No se encontró api/public/clientes.html', 500);
+});
 
 // Inicio de sesión del operador. Responde igual de lento si falla, para no dar pistas.
 admin.post('/api/login', async (c) => {
@@ -182,11 +190,139 @@ admin.get('/api/clientes', async (c) => {
       nombre: cl.nombre,
       activo: cl.activo,
       apiKeyPrefijo: cl.apiKeyPrefijo,
+      nit: cl.nit ?? null,
       modulos: cl.modulos.map((m) => ({ nombre: m.nombre, activo: m.activo, config: m.config })),
       portales: Object.keys((cl.credenciales as Record<string, unknown>) ?? {}),
+      /** Solo los nombres de los campos guardados por portal, nunca los valores. */
+      credenciales: Object.fromEntries(Object.entries((cl.credenciales as Record<string, Record<string, string>>) ?? {}).map(([p, campos]) => [p, Object.keys(campos ?? {})])),
       sesiones: porCliente(cl.slug),
     })),
   });
+});
+
+// ---------------------------------------------------------------------------------
+// Gestión de clientes: alta, clave de API, credenciales por portal (cifradas con la
+// clave pública del worker: la consola nunca puede leerlas).
+// ---------------------------------------------------------------------------------
+
+async function clavePublica(): Promise<string | null> {
+  const doc = await Configuracion.findOne({ clave: 'clavePublica' }).lean<{ valor?: string }>();
+  return typeof doc?.valor === 'string' ? doc.valor : null;
+}
+
+/** Portales conocidos con los campos de credenciales que piden sus módulos o flujos. */
+admin.get('/api/portales', async (c) => {
+  const portales = new Map<string, Set<string>>();
+  for (const m of Object.values(registro)) {
+    const s = portales.get(m.portal) ?? new Set<string>();
+    m.credencialesRequeridas.forEach((x) => s.add(x));
+    portales.set(m.portal, s);
+  }
+  const flujos = await Flujo.find().lean<FlujoDoc[]>();
+  for (const f of flujos) {
+    const def = (f.borrador ?? f.definicion) as FlujoDef | null;
+    if (!def?.portal) continue;
+    const s = portales.get(def.portal) ?? new Set<string>();
+    (def.credenciales_requeridas ?? []).forEach((x) => s.add(x));
+    portales.set(def.portal, s);
+  }
+  const clientes = await Cliente.find().select('credenciales').lean<ClienteDoc[]>();
+  for (const cl of clientes) for (const p of Object.keys((cl.credenciales as Record<string, unknown>) ?? {})) if (!portales.has(p)) portales.set(p, new Set());
+  return c.json({ portales: [...portales.entries()].map(([portal, campos]) => ({ portal, campos: [...campos] })).sort((a, b) => a.portal.localeCompare(b.portal)), clavePublica: Boolean(await clavePublica()) });
+});
+
+admin.post('/api/clientes', async (c) => {
+  let cuerpo: { slug?: string; nombre?: string; nit?: string };
+  try {
+    cuerpo = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON_INVALIDO' }, 400);
+  }
+  const slug = String(cuerpo.slug ?? '').trim().toLowerCase();
+  const nombre = String(cuerpo.nombre ?? '').trim();
+  if (!/^[a-z][a-z0-9-]{1,40}$/.test(slug)) return c.json({ error: 'SLUG_INVALIDO', mensaje: 'El identificador va en minúsculas, números y guiones' }, 400);
+  if (!nombre) return c.json({ error: 'FALTA_NOMBRE' }, 400);
+  if (await Cliente.exists({ slug })) return c.json({ error: 'YA_EXISTE', mensaje: `Ya existe el cliente ${slug}` }, 409);
+  const { apiKey, prefijo } = generarApiKey(slug);
+  await Cliente.create({ slug, nombre, nit: cuerpo.nit || undefined, apiKeyHash: hashApiKey(apiKey), apiKeyPrefijo: prefijo, modulos: [], credenciales: {} });
+  return c.json({ ok: true, slug, apiKey }, 201);
+});
+
+admin.put('/api/clientes/:slug', async (c) => {
+  const slug = c.req.param('slug');
+  let cuerpo: { nombre?: string; nit?: string; activo?: boolean };
+  try {
+    cuerpo = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON_INVALIDO' }, 400);
+  }
+  const cambios: Record<string, unknown> = {};
+  if (typeof cuerpo.nombre === 'string' && cuerpo.nombre.trim()) cambios.nombre = cuerpo.nombre.trim();
+  if (typeof cuerpo.nit === 'string') cambios.nit = cuerpo.nit.trim() || undefined;
+  if (typeof cuerpo.activo === 'boolean') cambios.activo = cuerpo.activo;
+  const r = await Cliente.updateOne({ slug }, { $set: cambios });
+  if (!r.matchedCount) return c.json({ error: 'CLIENTE_NO_ENCONTRADO' }, 404);
+  return c.json({ ok: true });
+});
+
+/** Genera una clave de API nueva; la anterior deja de servir. Se muestra una sola vez. */
+admin.post('/api/clientes/:slug/rotar-clave', async (c) => {
+  const slug = c.req.param('slug');
+  const { apiKey, prefijo } = generarApiKey(slug);
+  const r = await Cliente.updateOne({ slug }, { $set: { apiKeyHash: hashApiKey(apiKey), apiKeyPrefijo: prefijo } });
+  if (!r.matchedCount) return c.json({ error: 'CLIENTE_NO_ENCONTRADO' }, 404);
+  return c.json({ ok: true, apiKey });
+});
+
+/** Guarda las credenciales de un portal para un cliente. Los campos vacíos conservan el valor anterior. */
+admin.put('/api/clientes/:slug/credenciales/:portal', async (c) => {
+  const { slug, portal } = c.req.param();
+  let campos: Record<string, unknown>;
+  try {
+    campos = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON_INVALIDO' }, 400);
+  }
+  if (!/^[a-z][a-z0-9-]*$/.test(portal)) return c.json({ error: 'PORTAL_INVALIDO' }, 400);
+  const publica = await clavePublica();
+  if (!publica) return c.json({ error: 'SIN_CLAVE_PUBLICA', mensaje: 'Ningún worker ha publicado su clave todavía. Arranque el worker una vez (con la MASTER_KEY) y vuelva a intentar.' }, 503);
+  const cliente = await Cliente.findOne({ slug });
+  if (!cliente) return c.json({ error: 'CLIENTE_NO_ENCONTRADO' }, 404);
+  const actuales = ((cliente.get('credenciales') as Record<string, Record<string, string>>) ?? {})[portal] ?? {};
+  const nuevas: Record<string, string> = { ...actuales };
+  for (const [k, v] of Object.entries(campos)) {
+    if (!/^[a-z][a-z0-9_]*$/i.test(k)) continue;
+    if (v === null) delete nuevas[k];
+    else if (typeof v === 'string' && v !== '') nuevas[k] = cifrarConClavePublica(v, publica);
+  }
+  cliente.set(`credenciales.${portal}`, nuevas);
+  cliente.markModified('credenciales');
+  await cliente.save();
+  // Al cambiar credenciales, la sesión guardada del portal deja de ser fiable.
+  await Sesion.updateOne({ clienteSlug: slug, portal }, { $set: { valida: false } });
+  return c.json({ ok: true, campos: Object.keys(nuevas) });
+});
+
+admin.delete('/api/clientes/:slug/credenciales/:portal', async (c) => {
+  const { slug, portal } = c.req.param();
+  const cliente = await Cliente.findOne({ slug });
+  if (!cliente) return c.json({ error: 'CLIENTE_NO_ENCONTRADO' }, 404);
+  const creds = { ...((cliente.get('credenciales') as Record<string, unknown>) ?? {}) };
+  delete creds[portal];
+  cliente.set('credenciales', creds);
+  cliente.markModified('credenciales');
+  await cliente.save();
+  return c.json({ ok: true });
+});
+
+admin.delete('/api/clientes/:slug', async (c) => {
+  const slug = c.req.param('slug');
+  const enCurso = await Trabajo.countDocuments({ clienteSlug: slug, estado: { $in: ['pendiente', 'en_proceso'] } });
+  if (enCurso) return c.json({ error: 'CON_TRABAJOS', mensaje: 'El cliente tiene consultas en cola o en curso' }, 409);
+  const r = await Cliente.deleteOne({ slug });
+  if (!r.deletedCount) return c.json({ error: 'CLIENTE_NO_ENCONTRADO' }, 404);
+  await Sesion.deleteMany({ clienteSlug: slug });
+  return c.json({ ok: true });
 });
 
 // Ajusta la config de un módulo para un cliente (por ejemplo prestadorCodigo).
@@ -484,7 +620,11 @@ admin.post('/api/grabaciones', async (c) => {
   const url = cuerpo.url ?? def?.url_inicio;
   if (!portal || !url) return c.json({ error: 'FALTAN_DATOS', mensaje: 'Se requieren portal y URL de inicio (o un flujo guardado que los tenga)' }, 400);
   const pendiente = await Grabacion.findOne({ estado: { $in: ['solicitada', 'grabando'] } }).lean<GrabacionDoc>();
-  if (pendiente) return c.json({ error: 'GRABACION_EN_CURSO', mensaje: 'Ya hay una grabación en curso; deténgala antes de iniciar otra', id: String(pendiente._id) }, 409);
+  if (pendiente && grabacionHuerfana(pendiente)) {
+    await Grabacion.updateOne({ _id: pendiente._id }, { $set: { estado: 'terminada', detener: true, terminadaEn: new Date(), error: 'El worker dejó de responder; se cerró al iniciar otra grabación' } });
+  } else if (pendiente) {
+    return c.json({ error: 'GRABACION_EN_CURSO', mensaje: 'Ya hay una grabación en curso; deténgala antes de iniciar otra', id: String(pendiente._id) }, 409);
+  }
   const g = await Grabacion.create({ flujoNombre: cuerpo.flujo, clienteSlug: cliente.slug, portal, urlInicio: url, parametrosPrueba: cuerpo.parametros ?? {} });
   return c.json(presentarGrabacion(g.toObject() as GrabacionDoc), 202);
 });
@@ -505,7 +645,10 @@ admin.get('/api/grabaciones/:id', async (c) => {
   return c.json(presentarGrabacion(g));
 });
 
-/** Pide al worker cerrar la grabación; si nadie la había tomado, queda cancelada. */
+/** Una grabación "grabando" cuyo worker no da latido hace más de 45 s está huérfana (el worker se cerró). */
+const grabacionHuerfana = (g: GrabacionDoc) => g.estado === 'grabando' && Date.now() - new Date(g.ultimaSenal ?? g.iniciadaEn ?? g.createdAt).getTime() > 45_000;
+
+/** Pide al worker cerrar la grabación; si nadie la había tomado o el worker desapareció, la cierra aquí mismo. */
 admin.post('/api/grabaciones/:id/detener', async (c) => {
   const id = c.req.param('id');
   if (!mongoose.isValidObjectId(id)) return c.json({ error: 'ID_INVALIDO' }, 400);
@@ -514,6 +657,11 @@ admin.post('/api/grabaciones/:id/detener', async (c) => {
   if (g.estado === 'solicitada') {
     await Grabacion.updateOne({ _id: id }, { $set: { estado: 'cancelada', detener: true, terminadaEn: new Date() } });
     return c.json({ ok: true, estado: 'cancelada' });
+  }
+  if (grabacionHuerfana(g)) {
+    // Se conservan los pasos grabados hasta ese momento.
+    await Grabacion.updateOne({ _id: id }, { $set: { estado: 'terminada', detener: true, terminadaEn: new Date(), error: `El worker ${g.workerId ?? ''} dejó de responder; se cerró desde la consola` } });
+    return c.json({ ok: true, estado: 'terminada', huerfana: true });
   }
   await Grabacion.updateOne({ _id: id }, { $set: { detener: true } });
   return c.json({ ok: true, estado: g.estado });

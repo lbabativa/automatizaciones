@@ -26,7 +26,7 @@ export const CODIGO_GRABADOR = `(() => {
     const t = el.tagName.toLowerCase();
     const nombre = t === 'select' || t === 'input' || t === 'textarea'
       ? (etiquetaDe(el) || el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('name') || el.id || t)
-      : (limpiar(el.textContent) || el.getAttribute('value') || el.getAttribute('title') || el.getAttribute('aria-label') || t);
+      : (textoVisible(el) || el.getAttribute('value') || el.getAttribute('title') || el.getAttribute('aria-label') || t);
     return verbo + ' ' + limpiar(nombre).slice(0, 40);
   };
   const conEnter = new WeakSet();
@@ -194,7 +194,8 @@ export async function grabar(g: GrabacionDoc, log: (m: string) => void): Promise
     page.on('close', () => (cerrada = true));
     while (!grabacionActiva.fin && !cerrada && Date.now() < limite) {
       await new Promise((r) => setTimeout(r, 1500));
-      const doc = await Grabacion.findById(id).select('detener').lean<{ detener?: boolean }>();
+      // Latido: la consola sabe que este worker sigue atendiendo la grabación.
+      const doc = await Grabacion.findOneAndUpdate({ _id: id }, { $set: { ultimaSenal: new Date() } }, { new: true }).select('detener').lean<{ detener?: boolean }>();
       if (doc?.detener) break;
       for (const p of ctx.pages()) await p.evaluate(`window.__startiaContador && window.__startiaContador(${grabacionActiva.n})`).catch(() => undefined);
     }

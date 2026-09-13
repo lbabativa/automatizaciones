@@ -15,3 +15,5 @@ export { Inspeccion } from './modelos/Inspeccion.js';
 export type { InspeccionDoc, ElementoInspeccion } from './modelos/Inspeccion.js';
 export { Grabacion, ESTADOS_GRABACION } from './modelos/Grabacion.js';
 export type { GrabacionDoc } from './modelos/Grabacion.js';
+export { Configuracion } from './modelos/Configuracion.js';
+export type { ConfiguracionDoc } from './modelos/Configuracion.js';

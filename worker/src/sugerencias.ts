@@ -33,10 +33,12 @@ export const CODIGO_SUGERENCIAS = `
     const i = todos.indexOf(el);
     return i < 0 ? undefined : i;
   };
+  // innerText ignora scripts, estilos y contenido oculto; textContent solo como respaldo.
+  const textoVisible = (el) => { const it = typeof el.innerText === 'string' ? limpiar(el.innerText) : ''; return it || (el.querySelector && el.querySelector('script, style') ? '' : limpiar(el.textContent)); };
   const describir = (el) => {
     const t = el.tagName.toLowerCase();
     const rol = rolDe(el);
-    const texto = limpiar(t === 'input' || t === 'select' || t === 'textarea' ? (el.getAttribute('value') || el.getAttribute('title') || '') : el.textContent).slice(0, 80);
+    const texto = limpiar(t === 'input' || t === 'select' || t === 'textarea' ? (el.getAttribute('value') || el.getAttribute('title') || '') : textoVisible(el)).slice(0, 80);
     const nombre = el.getAttribute('aria-label') || el.getAttribute('title') || (t === 'input' ? '' : texto);
     const etiqueta = (t === 'input' || t === 'select' || t === 'textarea') ? etiquetaDe(el) : '';
     const placeholder = el.getAttribute('placeholder') || '';

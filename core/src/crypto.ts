@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createPrivateKey, createPublicKey, diffieHellman, generateKeyPairSync, hkdfSync, randomBytes, scryptSync, timingSafeEqual, type KeyObject } from 'node:crypto';
 import { env } from './env.js';
 
 function claveMaestra(): Buffer {
@@ -19,6 +19,7 @@ export function cifrar(texto: string): string {
 }
 
 export function descifrar(payload: string): string {
+  if (esPayloadV2(payload)) return descifrarV2(payload);
   const partes = payload.split('.');
   if (partes.length !== 3) throw new Error('Payload cifrado con formato inválido');
   const [iv, tag, datos] = partes.map((p) => Buffer.from(p, 'base64'));
@@ -60,4 +61,55 @@ export function verificarPassword(password: string, almacenado: string): boolean
   const esperado = Buffer.from(partes[2], 'base64url');
   const calculado = scryptSync(password, sal, esperado.length);
   return calculado.length === esperado.length && timingSafeEqual(calculado, esperado);
+}
+
+// ---------------------------------------------------------------------------------
+// Cifrado asimétrico: la consola (sin MASTER_KEY) cifra con la clave pública del
+// worker; solo quien tiene MASTER_KEY deriva la privada y descifra.
+// ---------------------------------------------------------------------------------
+
+const PKCS8_X25519 = Buffer.from('302e020100300506032b656e04220420', 'hex');
+const PREFIJO_V2 = 'v2.';
+
+/** Clave privada X25519 derivada de MASTER_KEY (determinista: la misma llave da el mismo par). */
+function clavePrivadaWorker(): KeyObject {
+  const semilla = hkdfSync('sha256', claveMaestra(), 'startia-automatizaciones', 'x25519-credenciales', 32);
+  return createPrivateKey({ key: Buffer.concat([PKCS8_X25519, Buffer.from(semilla)]), format: 'der', type: 'pkcs8' });
+}
+
+/** Clave pública (SPKI en base64) que el worker publica para que la consola cifre credenciales. */
+export function clavePublicaWorker(): string {
+  return createPublicKey(clavePrivadaWorker()).export({ type: 'spki', format: 'der' }).toString('base64');
+}
+
+/**
+ * Cifra texto para el worker con su clave pública: X25519 efímero + HKDF + AES-256-GCM.
+ * Formato: v2.<pubEfimera>.<iv>.<tag>.<datos> en base64.
+ */
+export function cifrarConClavePublica(texto: string, clavePublicaB64: string): string {
+  const publica = createPublicKey({ key: Buffer.from(clavePublicaB64, 'base64'), format: 'der', type: 'spki' });
+  const efimero = generateKeyPairSync('x25519');
+  const compartido = diffieHellman({ privateKey: efimero.privateKey, publicKey: publica });
+  const clave = Buffer.from(hkdfSync('sha256', compartido, 'startia-automatizaciones', 'credenciales-v2', 32));
+  const iv = randomBytes(12);
+  const cifrador = createCipheriv('aes-256-gcm', clave, iv);
+  const datos = Buffer.concat([cifrador.update(texto, 'utf8'), cifrador.final()]);
+  const pubEfimera = efimero.publicKey.export({ type: 'spki', format: 'der' });
+  return PREFIJO_V2 + [pubEfimera, iv, cifrador.getAuthTag(), datos].map((b) => b.toString('base64')).join('.');
+}
+
+function descifrarV2(payload: string): string {
+  const partes = payload.slice(PREFIJO_V2.length).split('.');
+  if (partes.length !== 4) throw new Error('Payload v2 con formato inválido');
+  const [pubEfimera, iv, tag, datos] = partes.map((p) => Buffer.from(p, 'base64'));
+  const compartido = diffieHellman({ privateKey: clavePrivadaWorker(), publicKey: createPublicKey({ key: pubEfimera, format: 'der', type: 'spki' }) });
+  const clave = Buffer.from(hkdfSync('sha256', compartido, 'startia-automatizaciones', 'credenciales-v2', 32));
+  const descifrador = createDecipheriv('aes-256-gcm', clave, iv);
+  descifrador.setAuthTag(tag);
+  return Buffer.concat([descifrador.update(datos), descifrador.final()]).toString('utf8');
+}
+
+/** Cifrado con clave pública ("v2.") o simétrico clásico. */
+export function esPayloadV2(payload: string): boolean {
+  return payload.startsWith(PREFIJO_V2);
 }
