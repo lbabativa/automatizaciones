@@ -20,6 +20,7 @@
     "cliente:crear": "tsx core/scripts/crear-cliente.ts",
     "cliente:rotar-clave": "tsx core/scripts/rotar-clave.ts",
     "cliente:credenciales": "tsx core/scripts/actualizar-credenciales.ts",
+    "admin:password": "tsx core/scripts/admin-password.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {

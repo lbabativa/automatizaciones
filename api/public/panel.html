@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Consola StartIA Automatizaciones</title>
+<title>Consola StartIA</title>
 <style>
 :root{
-  --ground:#f5f7fa; --paper:#fff; --paper-2:#eef2f7; --ink:#152238; --ink-2:#3e4c63;
-  --muted:#6b778c; --line:#d9dfe8; --line-2:#c3cbd8; --accent:#0f7b86; --accent-ink:#0b5d66;
+  --ground:#f3f5f8; --paper:#fff; --paper-2:#eef1f6; --ink:#152238; --ink-2:#3e4c63;
+  --muted:#6b778c; --line:#dde2ea; --line-2:#c3cbd8; --accent:#0f7b86; --accent-ink:#0b5d66;
   --accent-soft:#ddf0f2; --ok:#2e7d4f; --ok-soft:#e1f2e7; --warn:#a9641a; --warn-soft:#fbebd5;
-  --crit:#b23a3a; --crit-soft:#f7e0e0;
+  --crit:#b23a3a; --crit-soft:#f7e0e0; --shadow:0 1px 2px rgba(21,34,56,.06),0 8px 24px -12px rgba(21,34,56,.18);
   --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
   --sans:"Segoe UI",system-ui,ui-sans-serif,sans-serif;
 }
@@ -17,308 +17,474 @@
   --ground:#0e1524; --paper:#161f31; --paper-2:#1d2839; --ink:#e8edf5; --ink-2:#c0cadb;
   --muted:#8a97ac; --line:#2a3649; --line-2:#3a475c; --accent:#4cc1ca; --accent-ink:#8fdde3;
   --accent-soft:#12303a; --ok:#6ccb92; --ok-soft:#173225; --warn:#e3a45a; --warn-soft:#3a2a14;
-  --crit:#f08585; --crit-soft:#3a1c1c;
+  --crit:#f08585; --crit-soft:#3a1c1c; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.6);
 }}
 *{box-sizing:border-box}
+html,body{height:100%}
 body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
 a{color:var(--accent-ink)}
-header{background:var(--paper);border-bottom:1px solid var(--line);padding:14px 22px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:5}
-header h1{font-size:17px;margin:0;font-weight:700;letter-spacing:-.01em}
-header .badge{font-family:var(--mono);font-size:12px;color:var(--muted)}
-header .estado{margin-left:auto;font-size:13px;color:var(--muted);display:flex;gap:14px;align-items:center}
-.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:6px;vertical-align:1px}
-.dot.on{background:var(--ok)} .dot.off{background:var(--crit)}
-main{max-width:1160px;margin:0 auto;padding:22px;display:grid;grid-template-columns:380px 1fr;gap:22px;align-items:start}
-.card{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:18px}
-.card h2{font-size:14px;margin:0 0 14px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-label{display:block;font-size:13px;font-weight:600;color:var(--ink-2);margin:12px 0 5px}
-select,input,textarea{width:100%;font:inherit;background:var(--paper-2);color:var(--ink);border:1px solid var(--line-2);border-radius:7px;padding:8px 10px}
-select:focus,input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
-textarea{font-family:var(--mono);font-size:13px;min-height:72px;resize:vertical}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-button{font:inherit;font-weight:600;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:7px;padding:9px 14px;cursor:pointer}
+[hidden]{display:none!important}
+button{font:inherit;font-weight:600;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:8px;padding:10px 16px;cursor:pointer}
 button.sec{background:transparent;color:var(--accent-ink)}
-button:disabled{opacity:.5;cursor:default}
-.acciones{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+button.ghost{background:transparent;color:var(--muted);border-color:transparent;padding:6px 10px}
+button.ghost:hover{color:var(--ink);background:var(--paper-2)}
+button:disabled{opacity:.55;cursor:default}
+button.grande{width:100%;padding:14px;font-size:16px;margin-top:18px}
+label{display:block;font-size:13px;font-weight:600;color:var(--ink-2);margin:12px 0 5px}
+select,input,textarea{width:100%;font:inherit;background:var(--paper);color:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:10px 12px}
+select:focus,input:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+textarea{font-family:var(--mono);font-size:13px;min-height:80px;resize:vertical}
+.ayuda{font-size:12.5px;color:var(--muted);margin:4px 0 0}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:20px;box-shadow:var(--shadow)}
+.card h2{font-size:13px;margin:0 0 12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.mono{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+.error{background:var(--crit-soft);color:var(--crit);border-radius:8px;padding:10px 12px;font-size:13.5px;margin-top:12px}
+
+/* Acceso */
+#login{min-height:100%;display:grid;place-items:center;padding:24px}
+#login .card{width:100%;max-width:380px;padding:28px}
+.marca{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.marca .logo{width:34px;height:34px;border-radius:9px;background:var(--accent);color:#fff;display:grid;place-items:center;font-weight:800;font-size:15px}
+.marca b{font-size:17px}
+.marca small{display:block;color:var(--muted);font-size:12.5px;font-weight:500}
+
+/* Aplicación */
+header{background:var(--paper);border-bottom:1px solid var(--line);padding:12px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:5}
+header .estado{margin-left:auto;display:flex;gap:16px;align-items:center;font-size:13px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:4px 10px;border-radius:999px;background:var(--paper-2);color:var(--ink-2)}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.chip.on .dot{background:var(--ok)} .chip.off .dot{background:var(--crit)}
+main{max-width:1180px;margin:0 auto;padding:24px;display:grid;grid-template-columns:400px 1fr;gap:22px;align-items:start}
+.paso{display:flex;gap:10px;align-items:baseline;margin-top:18px}
+.paso:first-of-type{margin-top:0}
+.paso .n{flex:none;width:22px;height:22px;border-radius:50%;background:var(--accent-soft);color:var(--accent-ink);font-size:12px;font-weight:800;display:grid;place-items:center;transform:translateY(3px)}
+.paso h3{margin:0;font-size:14.5px}
+.paso-cuerpo{margin-left:32px}
+.fijo{padding:10px 12px;background:var(--paper-2);border-radius:8px;font-weight:600}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sesion{display:flex;gap:10px;align-items:flex-start;border-radius:8px;padding:10px 12px;font-size:13px;margin-top:16px}
+.sesion.ok{background:var(--ok-soft);color:var(--ok)} .sesion.warn{background:var(--warn-soft);color:var(--warn)}
+details{margin-top:18px;border-top:1px solid var(--line);padding-top:12px}
+summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;list-style:none;display:flex;align-items:center;gap:8px}
+summary::before{content:"▸";font-size:11px;transition:transform .15s}
+details[open] summary::before{transform:rotate(90deg)}
+.acciones{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
+
+/* Resultado */
+.vacio{color:var(--muted);font-size:14px;padding:36px 0;text-align:center}
+.vacio b{display:block;color:var(--ink-2);font-size:15px;margin-bottom:4px}
+.progreso{display:flex;gap:14px;align-items:center;padding:18px;background:var(--paper-2);border-radius:10px}
+.spinner{width:22px;height:22px;border:3px solid var(--line-2);border-top-color:var(--accent);border-radius:50%;animation:g 1s linear infinite;flex:none}
+@keyframes g{to{transform:rotate(360deg)}}
+.veredicto{display:flex;gap:14px;align-items:center;border-radius:10px;padding:16px 18px;margin-bottom:16px}
+.veredicto .icono{flex:none;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:22px;font-weight:800;color:#fff}
+.veredicto b{display:block;font-size:17px}
+.veredicto span{font-size:13.5px;opacity:.9}
+.veredicto.VERDE{background:var(--ok-soft);color:var(--ok)} .veredicto.VERDE .icono{background:var(--ok)}
+.veredicto.AMARILLO{background:var(--warn-soft);color:var(--warn)} .veredicto.AMARILLO .icono{background:var(--warn)}
+.veredicto.ROJO,.veredicto.ERROR{background:var(--crit-soft);color:var(--crit)} .veredicto.ROJO .icono,.veredicto.ERROR .icono{background:var(--crit)}
+.bloques{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.bloque{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.bloque h4{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:13.5px}
+.kv b{color:var(--muted);font-weight:600}
+.kv .destacado{font-size:16px;font-weight:700;color:var(--ink)}
+.obs{margin:12px 0 0;padding:0 0 0 18px;font-size:13.5px;color:var(--ink-2)}
+.capturas{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.capturas a{display:block;border:1px solid var(--line);border-radius:6px;overflow:hidden;width:140px}
+.capturas img{display:block;width:100%;height:90px;object-fit:cover;object-position:top}
+pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-family:var(--mono);font-size:12.5px;max-height:320px;margin:8px 0 0}
+.meta{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:14px}
+h4.sub{margin:16px 0 0;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+
+/* Historial */
+.filtros{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.filtros select{width:auto;padding:6px 10px;font-size:13px}
+.filtros .cnt{margin-left:auto;font-size:12.5px;color:var(--muted)}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:9px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--paper)}
-td{padding:9px 10px;border-bottom:1px solid var(--line);color:var(--ink-2)}
-tr:hover td{background:var(--paper-2);cursor:pointer}
-.tbl-wrap{max-height:360px;overflow:auto}
-.mono{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
-.pill{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.03em}
+td{padding:9px 10px;border-bottom:1px solid var(--line);color:var(--ink-2);vertical-align:middle}
+td.mono{white-space:nowrap}
+tr[data-id]{cursor:pointer} tr[data-id]:hover td{background:var(--paper-2)}
+tr.sel td{background:var(--accent-soft)}
+.tbl-wrap{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+.pill{display:inline-block;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap}
 .pill.pendiente{background:var(--paper-2);color:var(--muted)}
 .pill.en_proceso{background:var(--warn-soft);color:var(--warn)}
 .pill.completado{background:var(--ok-soft);color:var(--ok)}
 .pill.fallido{background:var(--crit-soft);color:var(--crit)}
-.sem{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:5px}
-.sem.VERDE{background:var(--ok-soft);color:var(--ok)} .sem.AMARILLO{background:var(--warn-soft);color:var(--warn)} .sem.ROJO{background:var(--crit-soft);color:var(--crit)}
-.tabs{display:flex;gap:4px;margin-bottom:14px;border-bottom:1px solid var(--line)}
-.tabs button{background:transparent;color:var(--muted);border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 12px;font-weight:600}
-.tabs button.activo{color:var(--ink);border-bottom-color:var(--accent)}
-pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;padding:12px;overflow:auto;font-family:var(--mono);font-size:12.5px;max-height:340px}
-.capturas{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.capturas a{display:block;border:1px solid var(--line);border-radius:6px;overflow:hidden;width:150px}
-.capturas img{display:block;width:100%;height:96px;object-fit:cover;object-position:top}
-.vacio{color:var(--muted);font-size:13px;padding:16px 0;text-align:center}
-.aviso{background:var(--warn-soft);color:var(--warn);border-radius:7px;padding:10px 12px;font-size:13px;margin-top:12px}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px;margin:8px 0}
-.kv b{color:var(--muted);font-weight:600}
-@media(max-width:900px){main{grid-template-columns:1fr}}
+.sem{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px}
+.sem.VERDE{background:var(--ok)} .sem.AMARILLO{background:var(--warn)} .sem.ROJO{background:var(--crit)}
+@media(max-width:920px){main{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
+
+<!-- Pantalla de acceso -->
+<div id="login">
+  <form class="card" id="form-login" autocomplete="on">
+    <div class="marca"><div class="logo">S</div><div><b>Consola StartIA</b><small>Automatizaciones</small></div></div>
+    <p class="ayuda" style="margin-bottom:6px">Acceso solo para el operador autorizado.</p>
+    <label for="l-usuario">Correo</label>
+    <input id="l-usuario" type="email" name="username" autocomplete="username" required placeholder="usuario@startia.tech">
+    <label for="l-pass">Contraseña</label>
+    <input id="l-pass" type="password" name="password" autocomplete="current-password" required>
+    <div id="l-error" class="error" hidden></div>
+    <button class="grande" id="btn-login" type="submit">Entrar</button>
+  </form>
+</div>
+
+<!-- Aplicación -->
+<div id="app" hidden>
 <header>
-  <h1>Consola StartIA</h1><span class="badge">Automatizaciones</span>
+  <div class="marca" style="margin:0"><div class="logo">S</div><div><b>Consola StartIA</b><small>Automatizaciones</small></div></div>
   <div class="estado">
-    <span id="est-db"><span class="dot"></span>base</span>
-    <span id="est-cola" class="mono">cola: —</span>
-    <button class="sec" id="btn-clave" style="padding:5px 10px">Clave</button>
+    <span id="est-db" class="chip"><span class="dot"></span>Conectando…</span>
+    <span id="est-cola" class="chip" title="Consultas en cola y en curso">cola 0 · en curso 0</span>
+    <span id="usuario" class="mono"></span>
+    <button class="ghost" id="btn-salir">Salir</button>
   </div>
 </header>
 
 <main>
-  <!-- Columna izquierda: ejecutar -->
   <section class="card">
-    <h2>Ejecutar consulta</h2>
-    <label for="f-cliente">Cliente</label>
-    <select id="f-cliente"></select>
-    <label for="f-modulo">Automatización</label>
-    <select id="f-modulo"></select>
-    <div id="f-params"></div>
-    <label for="f-modo">Modo</label>
-    <select id="f-modo">
-      <option value="sync">Esperar resultado (sync)</option>
-      <option value="async">En segundo plano (async)</option>
-    </select>
-    <div class="acciones">
-      <button id="btn-ejecutar">Ejecutar</button>
-      <button class="sec" id="btn-refrescar">Refrescar historial</button>
-    </div>
+    <div class="paso"><span class="n">1</span><h3>Cliente</h3></div>
+    <div class="paso-cuerpo" id="box-cliente"><select id="f-cliente"></select></div>
+
+    <div class="paso"><span class="n">2</span><h3>Consulta</h3></div>
+    <div class="paso-cuerpo" id="box-modulo"><select id="f-modulo"></select></div>
+
+    <div class="paso"><span class="n">3</span><h3>Datos del paciente</h3></div>
+    <div class="paso-cuerpo" id="f-params"></div>
+
+    <button class="grande" id="btn-ejecutar">Consultar</button>
+    <p class="ayuda" style="text-align:center">El robot entra al portal y trae el resultado. Suele tardar entre 30 y 90 segundos.</p>
     <div id="sesion-info"></div>
 
-    <h2 style="margin-top:22px">Configuración del cliente</h2>
-    <div id="config-box"><p class="vacio">Elija un cliente y una automatización.</p></div>
+    <details>
+      <summary>Ajustes del cliente</summary>
+      <div id="config-box"></div>
+    </details>
   </section>
 
-  <!-- Columna derecha: historial + detalle -->
-  <section class="card">
-    <div class="tabs">
-      <button id="tab-hist" class="activo">Historial</button>
-      <button id="tab-det">Detalle</button>
+  <section style="display:grid;gap:22px">
+    <div class="card">
+      <h2>Resultado</h2>
+      <div id="resultado"><p class="vacio"><b>Sin consulta seleccionada</b>Haga una consulta nueva o elija una del historial.</p></div>
     </div>
-    <div id="panel-hist">
+    <div class="card">
+      <h2>Historial</h2>
+      <div class="filtros">
+        <select id="h-estado"><option value="">Todos los estados</option><option value="completado">Completadas</option><option value="fallido">Fallidas</option><option value="pendiente">Pendientes</option><option value="en_proceso">En curso</option></select>
+        <button class="sec" id="btn-refrescar" style="padding:6px 12px;font-size:13px">Actualizar</button>
+        <span class="cnt" id="h-cnt"></span>
+      </div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Hora</th><th>Cliente</th><th>Automatización</th><th>Estado</th><th>Resultado</th></tr></thead>
+          <thead><tr><th>Fecha</th><th>Cliente</th><th>Paciente</th><th>Estado</th><th>Resultado</th></tr></thead>
           <tbody id="hist-body"></tbody>
         </table>
       </div>
-      <p id="hist-vacio" class="vacio" hidden>Sin consultas todavía.</p>
+      <p id="hist-vacio" class="vacio" hidden>Todavía no hay consultas.</p>
     </div>
-    <div id="panel-det" hidden></div>
   </section>
 </main>
+</div>
 
 <script>
 const $ = (s) => document.querySelector(s);
-// La clave puede venir en la URL (?k=...) para abrir el panel directo; se guarda y se limpia de la barra.
-const _urlKey = new URLSearchParams(location.search).get('k');
-if (_urlKey){ localStorage.setItem('adminKey', _urlKey); history.replaceState(null,'',location.pathname); }
-let CLAVE = localStorage.getItem('adminKey') || '';
-let CLIENTES = [];
-let MODULOS = [];
-let detalleTimer = null;
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+let CLIENTES = [], MODULOS = [], SELECCION = null, seguimiento = null, estadoTimer = null;
 
-function pedirClave(){
-  const v = prompt('Clave de operador (ADMIN_KEY):', CLAVE || '');
-  if (v !== null){ CLAVE = v.trim(); localStorage.setItem('adminKey', CLAVE); iniciar(); }
-}
-$('#btn-clave').onclick = pedirClave;
-
-async function api(ruta, opciones={}){
-  const r = await fetch('/admin/api'+ruta, {
-    ...opciones,
-    headers: { 'x-admin-key': CLAVE, 'content-type':'application/json', ...(opciones.headers||{}) },
-  });
-  if (r.status === 401){ throw new Error('Clave de operador inválida'); }
-  const j = await r.json().catch(()=>({}));
-  if (!r.ok) throw new Error(j.mensaje || j.error || ('Error '+r.status));
+// ---------- API ----------
+async function api(ruta, opciones = {}) {
+  const r = await fetch('/admin/api' + ruta, { ...opciones, credentials: 'same-origin', headers: { 'content-type': 'application/json', ...(opciones.headers || {}) } });
+  if (r.status === 401 && !ruta.startsWith('/login')) { mostrarLogin('La sesión terminó. Vuelva a entrar.'); throw new Error('NO_AUTENTICADO'); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.mensaje || j.error || ('Error ' + r.status)); e.codigo = j.error; e.detalles = j.detalles; throw e; }
   return j;
 }
 
-function fmtHora(s){ return s ? new Date(s).toLocaleString('es-CO',{hour12:false,day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—'; }
+// ---------- Acceso ----------
+function mostrarLogin(mensaje) {
+  clearInterval(estadoTimer); clearInterval(seguimiento);
+  $('#app').hidden = true; $('#login').hidden = false;
+  const e = $('#l-error'); e.hidden = !mensaje; e.textContent = mensaje || '';
+  $('#l-usuario').focus();
+}
+$('#form-login').onsubmit = async (ev) => {
+  ev.preventDefault();
+  const btn = $('#btn-login'); btn.disabled = true; btn.textContent = 'Entrando…';
+  try {
+    const { usuario } = await api('/login', { method: 'POST', body: JSON.stringify({ usuario: $('#l-usuario').value, password: $('#l-pass').value }) });
+    $('#l-pass').value = '';
+    entrar(usuario);
+  } catch (e) {
+    const err = $('#l-error'); err.hidden = false; err.textContent = e.message;
+  } finally { btn.disabled = false; btn.textContent = 'Entrar'; }
+};
+$('#btn-salir').onclick = async () => { await api('/logout', { method: 'POST' }).catch(() => {}); mostrarLogin(); };
 
-async function refrescarEstado(){
-  try{
+async function entrar(usuario) {
+  $('#login').hidden = true; $('#app').hidden = false;
+  $('#usuario').textContent = usuario;
+  await refrescarEstado();
+  await cargarClientes();
+  await cargarHistorial();
+  clearInterval(estadoTimer); estadoTimer = setInterval(refrescarEstado, 10000);
+}
+
+// ---------- Estado ----------
+async function refrescarEstado() {
+  try {
     const e = await api('/estado');
-    $('#est-db').innerHTML = '<span class="dot on"></span>base';
-    $('#est-cola').textContent = 'cola: '+e.pendientes+' pend / '+e.enProceso+' en curso';
     MODULOS = e.modulos;
-  }catch(err){
-    $('#est-db').innerHTML = '<span class="dot off"></span>'+ (err.message.includes('inválida')?'sin clave':'sin conexión');
+    $('#est-db').className = 'chip ' + (e.ok ? 'on' : 'off');
+    $('#est-db').innerHTML = '<span class="dot"></span>' + (e.ok ? 'Conectado' : 'Sin base de datos');
+    $('#est-cola').textContent = `cola ${e.pendientes} · en curso ${e.enProceso}`;
+  } catch (err) {
+    if (err.message === 'NO_AUTENTICADO') return;
+    $('#est-db').className = 'chip off'; $('#est-db').innerHTML = '<span class="dot"></span>Sin conexión';
   }
 }
 
-async function cargarClientes(){
+// ---------- Clientes y formulario ----------
+const ESQUEMAS = {
+  'sanitas-autorizaciones': {
+    titulo: 'Autorizaciones Sanitas',
+    campos: [
+      { n: 'tipo_doc', etq: 'Tipo de documento', tipo: 'select', ops: ['CC','TI','CE','PA','RC','PE','PT','AS','MS','NU','CD','SC'], def: 'CC', fila: true },
+      { n: 'num_doc', etq: 'Número de documento', tipo: 'text', req: true, ph: 'Ej. 79589789', fila: true, inputmode: 'numeric' },
+      { n: 'cups', etq: 'Código CUPS del servicio', tipo: 'text', ph: 'Ej. 890328', ayuda: 'Opcional. Si se indica, se busca la autorización para ese servicio.' },
+      { n: 'fecha_cita', etq: 'Fecha de la cita', tipo: 'date', ayuda: 'Opcional. Para validar que la autorización esté vigente ese día.' },
+      { n: 'contrato', etq: 'Contrato', tipo: 'select', ops: [['AUTO','Detectar automáticamente'],['EPS','EPS'],['PAC','Plan complementario']], def: 'AUTO' },
+    ],
+  },
+};
+const nombreModulo = (n) => (ESQUEMAS[n] && ESQUEMAS[n].titulo) || (MODULOS.find((m) => m.nombre === n) || {}).descripcion || n;
+
+async function cargarClientes() {
   const { clientes } = await api('/clientes');
   CLIENTES = clientes;
-  const sel = $('#f-cliente');
-  sel.innerHTML = clientes.map(c=>`<option value="${c.slug}">${c.nombre}</option>`).join('') || '<option value="">(sin clientes)</option>';
+  const box = $('#box-cliente');
+  if (clientes.length === 1) {
+    box.innerHTML = `<div class="fijo">${esc(clientes[0].nombre)}</div><select id="f-cliente" hidden><option value="${esc(clientes[0].slug)}"></option></select>`;
+  } else {
+    box.innerHTML = `<select id="f-cliente">${clientes.map((c) => `<option value="${esc(c.slug)}">${esc(c.nombre)}</option>`).join('') || '<option value="">(sin clientes)</option>'}</select>`;
+    $('#f-cliente').onchange = onClienteCambia;
+  }
   onClienteCambia();
 }
+function clienteActual() { return CLIENTES.find((c) => c.slug === $('#f-cliente').value); }
 
-function onClienteCambia(){
-  const cl = CLIENTES.find(c=>c.slug===$('#f-cliente').value);
-  const sel = $('#f-modulo');
-  const mods = cl ? cl.modulos.filter(m=>m.activo) : [];
-  sel.innerHTML = mods.map(m=>`<option value="${m.nombre}">${m.nombre}</option>`).join('') || '<option value="">(sin módulos)</option>';
+function onClienteCambia() {
+  const cl = clienteActual();
+  const mods = cl ? cl.modulos.filter((m) => m.activo) : [];
+  const box = $('#box-modulo');
+  if (mods.length === 1) {
+    box.innerHTML = `<div class="fijo">${esc(nombreModulo(mods[0].nombre))}</div><select id="f-modulo" hidden><option value="${esc(mods[0].nombre)}"></option></select>`;
+  } else {
+    box.innerHTML = `<select id="f-modulo">${mods.map((m) => `<option value="${esc(m.nombre)}">${esc(nombreModulo(m.nombre))}</option>`).join('') || '<option value="">(sin automatizaciones)</option>'}</select>`;
+    $('#f-modulo').onchange = onModuloCambia;
+  }
   pintarSesion(cl);
   onModuloCambia();
 }
 
-function pintarSesion(cl){
+function pintarSesion(cl) {
   const box = $('#sesion-info');
-  if (!cl || !cl.sesiones.length){ box.innerHTML = '<div class="aviso">Sin sesión guardada. La primera consulta abrirá una ventana para iniciar sesión a mano.</div>'; return; }
-  box.innerHTML = cl.sesiones.map(s=>{
-    const est = s.valida ? 'válida' : 'expirada';
-    return `<div class="aviso" style="background:${s.valida?'var(--ok-soft)':'var(--warn-soft)'};color:${s.valida?'var(--ok)':'var(--warn)'}">Sesión ${s.portal}: ${est} (${s.origen}, ${fmtHora(s.actualizada)})</div>`;
-  }).join('');
+  if (!cl || !cl.sesiones.length) { box.innerHTML = '<div class="sesion warn">⚠️ <span>Sin sesión guardada en el portal. En la primera consulta el robot abrirá una ventana en el equipo de la clínica para iniciar sesión a mano.</span></div>'; return; }
+  box.innerHTML = cl.sesiones.map((s) => s.valida
+    ? `<div class="sesion ok">✅ <span>Sesión en ${esc(s.portal)} activa (${fmtHora(s.actualizada)}).</span></div>`
+    : `<div class="sesion warn">⚠️ <span>La sesión en ${esc(s.portal)} expiró (${fmtHora(s.actualizada)}). La próxima consulta pedirá iniciar sesión a mano en el equipo de la clínica.</span></div>`).join('');
 }
 
-// Construye el formulario de parámetros a partir del esquema conocido del módulo.
-const ESQUEMAS = {
-  'sanitas-autorizaciones': [
-    {n:'tipo_doc', etq:'Tipo de documento', tipo:'select', ops:['CC','TI','CE','PA','RC','PE','PT','AS','MS','NU','CD','SC'], def:'CC'},
-    {n:'num_doc', etq:'Número de documento', tipo:'text', req:true, ph:'79589789'},
-    {n:'cups', etq:'CUPS del servicio (opcional)', tipo:'text', ph:'890328'},
-    {n:'fecha_cita', etq:'Fecha de la cita (opcional)', tipo:'date'},
-    {n:'contrato', etq:'Contrato', tipo:'select', ops:['AUTO','EPS','PAC'], def:'AUTO'},
-  ],
-};
-function onModuloCambia(){
+function onModuloCambia() {
   const m = $('#f-modulo').value;
-  const campos = ESQUEMAS[m] || [{n:'_json', etq:'Parámetros (JSON)', tipo:'json'}];
-  $('#f-params').innerHTML = campos.map(c=>{
-    if (c.tipo==='select') return `<label>${c.etq}</label><select data-p="${c.n}">${c.ops.map(o=>`<option${o===c.def?' selected':''}>${o}</option>`).join('')}</select>`;
-    if (c.tipo==='json') return `<label>${c.etq}</label><textarea data-p="${c.n}">{}</textarea>`;
-    return `<label>${c.etq}</label><input data-p="${c.n}" type="${c.tipo}" placeholder="${c.ph||''}">`;
-  }).join('');
+  const esquema = ESQUEMAS[m];
+  const campos = esquema ? esquema.campos : [{ n: '_json', etq: 'Parámetros (JSON)', tipo: 'json' }];
+  let html = '', fila = [];
+  const cerrarFila = () => { if (fila.length) { html += `<div class="row">${fila.join('')}</div>`; fila = []; } };
+  for (const c of campos) {
+    let campo;
+    if (c.tipo === 'select') campo = `<div><label>${esc(c.etq)}</label><select data-p="${c.n}">${c.ops.map((o) => { const [v, t] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}"${v === c.def ? ' selected' : ''}>${esc(t)}</option>`; }).join('')}</select></div>`;
+    else if (c.tipo === 'json') campo = `<div><label>${esc(c.etq)}</label><textarea data-p="${c.n}">{}</textarea></div>`;
+    else campo = `<div><label>${esc(c.etq)}${c.req ? '' : ' <span style="font-weight:400;color:var(--muted)">(opcional)</span>'}</label><input data-p="${c.n}" type="${c.tipo}" placeholder="${esc(c.ph || '')}"${c.inputmode ? ` inputmode="${c.inputmode}"` : ''}${c.req ? ' required' : ''}>${c.ayuda ? `<p class="ayuda">${esc(c.ayuda)}</p>` : ''}</div>`;
+    if (c.fila) fila.push(campo); else { cerrarFila(); html += campo; }
+  }
+  cerrarFila();
+  $('#f-params').innerHTML = html;
+  const primero = $('#f-params input[required]'); if (primero) primero.focus();
+  $('#f-params').querySelectorAll('input').forEach((i) => i.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') ejecutar(); }));
   pintarConfig(m);
 }
 
-function pintarConfig(nombreMod){
-  const cl = CLIENTES.find(c=>c.slug===$('#f-cliente').value);
-  const mod = cl && cl.modulos.find(m=>m.nombre===nombreMod);
+function pintarConfig(nombreMod) {
+  const cl = clienteActual();
+  const mod = cl && cl.modulos.find((m) => m.nombre === nombreMod);
   const box = $('#config-box');
-  if (!mod){ box.innerHTML = '<p class="vacio">Sin módulo seleccionado.</p>'; return; }
-  box.innerHTML = `<label>Config de <span class="mono">${nombreMod}</span> (JSON)</label>
-    <textarea id="config-json">${JSON.stringify(mod.config||{},null,2)}</textarea>
-    <div class="acciones"><button class="sec" id="btn-config">Guardar configuración</button></div>`;
-  $('#btn-config').onclick = async ()=>{
-    let cfg; try{ cfg = JSON.parse($('#config-json').value); }catch{ return alert('JSON inválido'); }
-    try{
-      await api(`/clientes/${cl.slug}/modulos/${nombreMod}/config`, {method:'PUT', body:JSON.stringify(cfg)});
-      await cargarClientes(); alert('Configuración guardada');
-    }catch(e){ alert(e.message); }
+  if (!mod) { box.innerHTML = '<p class="ayuda">Sin automatización seleccionada.</p>'; return; }
+  box.innerHTML = `<p class="ayuda">Parámetros propios de <b>${esc(cl.nombre)}</b> para <b>${esc(nombreModulo(nombreMod))}</b>, por ejemplo el código de prestador. Clave de API: <span class="mono">${esc(cl.apiKeyPrefijo || '')}…</span></p>
+    <textarea id="config-json">${esc(JSON.stringify(mod.config || {}, null, 2))}</textarea>
+    <div class="acciones"><button class="sec" id="btn-config">Guardar ajustes</button><span id="config-msg" class="ayuda"></span></div>`;
+  $('#btn-config').onclick = async () => {
+    let cfg; try { cfg = JSON.parse($('#config-json').value); } catch { $('#config-msg').textContent = 'El JSON no es válido.'; return; }
+    try { await api(`/clientes/${cl.slug}/modulos/${nombreMod}/config`, { method: 'PUT', body: JSON.stringify(cfg) }); $('#config-msg').textContent = 'Guardado.'; await cargarClientes(); }
+    catch (e) { $('#config-msg').textContent = e.message; }
   };
 }
 
-function leerParams(){
+function leerParams() {
   const p = {};
-  document.querySelectorAll('#f-params [data-p]').forEach(el=>{
+  document.querySelectorAll('#f-params [data-p]').forEach((el) => {
     const k = el.dataset.p; const v = el.value.trim();
-    if (k==='_json'){ Object.assign(p, JSON.parse(v||'{}')); return; }
-    if (v!=='') p[k]=v;
+    if (k === '_json') { Object.assign(p, JSON.parse(v || '{}')); return; }
+    if (v !== '') p[k] = v;
   });
   return p;
 }
 
-async function ejecutar(){
-  const cliente = $('#f-cliente').value, modulo = $('#f-modulo').value, modo = $('#f-modo').value;
-  if (!cliente || !modulo) return alert('Elija cliente y automatización');
-  let parametros; try{ parametros = leerParams(); }catch{ return alert('Parámetros JSON inválidos'); }
-  const btn = $('#btn-ejecutar'); btn.disabled = true; btn.textContent = modo==='sync'?'Ejecutando…':'Encolando…';
-  try{
-    const t = await api('/ejecutar', {method:'POST', body:JSON.stringify({cliente,modulo,parametros,modo})});
-    await cargarHistorial();
-    verDetalle(t.id);
-    if (modo==='async') seguirDetalle(t.id);
-  }catch(e){ alert(e.message); }
-  finally{ btn.disabled=false; btn.textContent='Ejecutar'; }
-}
-
-async function cargarHistorial(){
-  try{
-    const { trabajos } = await api('/trabajos?limite=60');
-    const body = $('#hist-body');
-    $('#hist-vacio').hidden = trabajos.length>0;
-    body.innerHTML = trabajos.map(t=>`<tr data-id="${t.id}">
-      <td class="mono">${fmtHora(t.creado)}</td><td>${t.cliente}</td><td>${t.modulo}</td>
-      <td><span class="pill ${t.estado}">${t.estado}</span></td>
-      <td>${t.semaforo?`<span class="sem ${t.semaforo}">${t.semaforo}</span>`:(t.error?`<span class="mono" style="color:var(--crit)">${t.error}</span>`:'—')}</td>
-    </tr>`).join('');
-    body.querySelectorAll('tr').forEach(tr=>tr.onclick=()=>verDetalle(tr.dataset.id));
-  }catch(e){ /* silencioso */ }
-}
-
-function seguirDetalle(id){
-  clearInterval(detalleTimer);
-  detalleTimer = setInterval(async ()=>{
-    const t = await api('/trabajos/'+id).catch(()=>null);
-    if (!t) return;
-    if (t.estado==='completado' || t.estado==='fallido'){ clearInterval(detalleTimer); cargarHistorial(); }
+// ---------- Ejecutar ----------
+async function ejecutar() {
+  const cliente = $('#f-cliente').value, modulo = $('#f-modulo').value;
+  if (!cliente || !modulo) return;
+  let parametros;
+  try { parametros = leerParams(); } catch { return pintarError('Los parámetros JSON no son válidos.'); }
+  const faltante = [...document.querySelectorAll('#f-params [required]')].find((i) => !i.value.trim());
+  if (faltante) { faltante.focus(); return pintarError('Falta ' + faltante.previousElementSibling.textContent.trim().toLowerCase() + '.'); }
+  const btn = $('#btn-ejecutar'); btn.disabled = true; btn.textContent = 'Consultando…';
+  pintarProgreso('Enviando la consulta al robot…');
+  try {
+    const t = await api('/ejecutar', { method: 'POST', body: JSON.stringify({ cliente, modulo, parametros, modo: 'async' }) });
+    SELECCION = t.id;
     pintarDetalle(t);
+    seguir(t.id);
+    cargarHistorial();
+  } catch (e) {
+    if (e.codigo === 'PARAMETROS_INVALIDOS') pintarError('Revise los datos: ' + (e.detalles || []).map((d) => `${d.path.join('.')}: ${d.message}`).join('; '));
+    else if (e.message !== 'NO_AUTENTICADO') pintarError(e.message);
+  } finally { btn.disabled = false; btn.textContent = 'Consultar'; }
+}
+$('#btn-ejecutar').onclick = ejecutar;
+
+function seguir(id) {
+  clearInterval(seguimiento);
+  const inicio = Date.now();
+  seguimiento = setInterval(async () => {
+    if (SELECCION !== id) return clearInterval(seguimiento);
+    const t = await api('/trabajos/' + id).catch(() => null);
+    if (!t) return;
+    if (t.estado === 'completado' || t.estado === 'fallido') { clearInterval(seguimiento); cargarHistorial(); pintarDetalle(t); return; }
+    const seg = Math.round((Date.now() - inicio) / 1000);
+    pintarProgreso(t.estado === 'en_proceso' ? `El robot está en el portal (${seg} s)…` : `En cola, esperando al robot (${seg} s)…`, t);
   }, 3000);
 }
 
-async function verDetalle(id){
-  const t = await api('/trabajos/'+id).catch(e=>({error:e.message}));
-  cambiarTab('det'); pintarDetalle(t);
+// ---------- Historial ----------
+async function cargarHistorial() {
+  try {
+    const estado = $('#h-estado').value;
+    const { trabajos } = await api('/trabajos?limite=80' + (estado ? '&estado=' + estado : ''));
+    $('#hist-vacio').hidden = trabajos.length > 0;
+    $('#h-cnt').textContent = trabajos.length ? `${trabajos.length} consultas` : '';
+    $('#hist-body').innerHTML = trabajos.map((t) => `<tr data-id="${t.id}"${t.id === SELECCION ? ' class="sel"' : ''}>
+      <td class="mono">${fmtHora(t.creado)}</td><td>${esc(nombreCliente(t.cliente))}</td>
+      <td class="mono">${esc(t.parametros && t.parametros.num_doc ? `${t.parametros.tipo_doc || ''} ${t.parametros.num_doc}` : JSON.stringify(t.parametros))}</td>
+      <td><span class="pill ${t.estado}">${etqEstado(t.estado)}</span></td>
+      <td>${t.semaforo ? `<span class="sem ${t.semaforo}"></span>${etqSemaforo(t.semaforo).corto}` : (t.estado === 'fallido' && t.error ? `<span style="color:var(--crit)">${esc(etqError(t.error))}</span>` : '—')}</td>
+    </tr>`).join('');
+    $('#hist-body').querySelectorAll('tr').forEach((tr) => (tr.onclick = () => verDetalle(tr.dataset.id)));
+  } catch (e) { /* la barra de estado ya avisa */ }
+}
+$('#btn-refrescar').onclick = cargarHistorial;
+$('#h-estado').onchange = cargarHistorial;
+
+async function verDetalle(id) {
+  clearInterval(seguimiento);
+  SELECCION = id;
+  $('#hist-body').querySelectorAll('tr').forEach((tr) => tr.classList.toggle('sel', tr.dataset.id === id));
+  pintarProgreso('Cargando…');
+  try {
+    const t = await api('/trabajos/' + id);
+    pintarDetalle(t);
+    if (t.estado === 'pendiente' || t.estado === 'en_proceso') seguir(id);
+  } catch (e) { if (e.message !== 'NO_AUTENTICADO') pintarError(e.message); }
 }
 
-function pintarDetalle(t){
-  const box = $('#panel-det');
-  if (t.error && !t.id){ box.innerHTML = `<p class="vacio">${t.error}</p>`; return; }
-  const caps = (t.capturas||[]).map(u=>{
-    const src = u.startsWith('/admin') ? u+'&k='+encodeURIComponent(CLAVE) : u;
-    return `<a href="${src}" target="_blank"><img src="${src}" alt="captura"></a>`;
-  }).join('');
-  box.innerHTML = `
-    <div class="kv">
-      <b>ID</b><span class="mono">${t.id}</span>
-      <b>Cliente</b><span>${t.cliente}</span>
-      <b>Automatización</b><span>${t.modulo}</span>
-      <b>Estado</b><span><span class="pill ${t.estado}">${t.estado}</span> ${t.semaforo?`<span class="sem ${t.semaforo}">${t.semaforo}</span>`:''}</span>
-      <b>Parámetros</b><span class="mono">${JSON.stringify(t.parametros)}</span>
-      ${t.error?`<b>Error</b><span style="color:var(--crit)">${t.error}: ${t.error_mensaje||''}</span>`:''}
-      <b>Duración</b><span>${t.duracion_ms?(t.duracion_ms/1000).toFixed(1)+' s':'—'}</span>
+// ---------- Resultado ----------
+const nombreCliente = (slug) => (CLIENTES.find((c) => c.slug === slug) || {}).nombre || slug;
+const etqEstado = (e) => ({ pendiente: 'En cola', en_proceso: 'En curso', completado: 'Completada', fallido: 'Fallida' }[e] || e);
+function etqSemaforo(s) {
+  return {
+    VERDE: { corto: 'Autorizado', titulo: 'Puede atender', texto: 'Afiliación vigente y autorización aprobada para el servicio.' },
+    AMARILLO: { corto: 'Revisar', titulo: 'Revisar antes de atender', texto: 'Hay autorización pero no coincide del todo con lo solicitado, o el paciente tiene varios contratos.' },
+    ROJO: { corto: 'No autorizado', titulo: 'No se puede atender con cargo a la EPS', texto: 'Afiliación inactiva, sin autorización o autorización vencida.' },
+  }[s] || { corto: s, titulo: s, texto: '' };
+}
+const ERRORES = {
+  PACIENTE_NO_EXISTE: 'El paciente no aparece en el portal.', SIN_CONTRATO: 'El paciente no tiene contrato vigente.',
+  SESION_INVALIDA: 'La sesión del portal expiró; hay que iniciar sesión a mano.', PORTAL_NO_DISPONIBLE: 'El portal no respondió.',
+  TIMEOUT: 'El portal tardó demasiado.',
+};
+const etqError = (c) => ERRORES[c] || c;
+const fmtHora = (s) => (s ? new Date(s).toLocaleString('es-CO', { hour12: false, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
+const fmtFecha = (s) => (s ? new Date(s + (s.length === 10 ? 'T00:00:00' : '')).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+const fmtPesos = (n) => (typeof n === 'number' ? '$ ' + n.toLocaleString('es-CO') : (n ?? '—'));
+
+function pintarError(msg) { $('#resultado').innerHTML = `<div class="error">${esc(msg)}</div>`; }
+function pintarProgreso(msg, t) {
+  $('#resultado').innerHTML = `<div class="progreso"><div class="spinner"></div><div><b>${esc(msg)}</b>${t ? `<div class="ayuda">${esc(nombreCliente(t.cliente))} · ${esc(descParams(t.parametros))}</div>` : ''}</div></div>`;
+}
+const descParams = (p) => p && p.num_doc ? `${p.tipo_doc || ''} ${p.num_doc}${p.cups ? ' · CUPS ' + p.cups : ''}${p.fecha_cita ? ' · cita ' + fmtFecha(p.fecha_cita) : ''}` : JSON.stringify(p);
+
+function pintarDetalle(t) {
+  const box = $('#resultado');
+  if (t.estado === 'pendiente' || t.estado === 'en_proceso') return pintarProgreso(t.estado === 'en_proceso' ? 'El robot está en el portal…' : 'En cola, esperando al robot…', t);
+  let cabecera, cuerpo = '';
+  const r = t.resultado || {};
+  if (t.estado === 'fallido') {
+    cabecera = `<div class="veredicto ERROR"><div class="icono">!</div><div><b>La consulta no se pudo completar</b><span>${esc(etqError(t.error))}${t.error_mensaje && etqError(t.error) !== t.error_mensaje ? ' · ' + esc(t.error_mensaje) : ''}</span></div></div>`;
+  } else if (r.semaforo) {
+    const s = etqSemaforo(r.semaforo);
+    cabecera = `<div class="veredicto ${esc(r.semaforo)}"><div class="icono">${r.semaforo === 'VERDE' ? '✓' : r.semaforo === 'AMARILLO' ? '?' : '✕'}</div><div><b>${esc(s.titulo)}</b><span>${esc(s.texto)}</span></div></div>`;
+  } else {
+    cabecera = `<div class="veredicto VERDE"><div class="icono">✓</div><div><b>Consulta completada</b></div></div>`;
+  }
+  if (t.modulo === 'sanitas-autorizaciones' && t.estado !== 'fallido') {
+    const p = r.paciente || {}, a = r.autorizacion_seleccionada, c = r.copago;
+    cuerpo = `<div class="bloques">
+      <div class="bloque"><h4>Paciente</h4><div class="kv">
+        <b>Nombre</b><span class="destacado">${esc(p.nombre || '—')}</span>
+        <b>Documento</b><span>${esc(descParams({ tipo_doc: t.parametros.tipo_doc, num_doc: t.parametros.num_doc }))}</span>
+        <b>Afiliación</b><span>${esc(p.estado_afiliacion || '—')}</span>
+        <b>Plan</b><span>${esc(p.plan || '—')}</span>
+        <b>Contrato</b><span class="mono">${esc(p.contrato || '—')}</span></div></div>
+      <div class="bloque"><h4>Autorización</h4>${a ? `<div class="kv">
+        <b>Número</b><span class="destacado mono">${esc(a.numero || '—')}</span>
+        <b>Estado</b><span>${esc(a.estado || '—')}</span>
+        <b>Servicio</b><span>${esc(a.cups || '')} ${esc(a.descripcion || '')}</span>
+        <b>Aprobada</b><span>${fmtFecha(a.fecha_aprobacion)}</span>
+        <b>Vigente hasta</b><span>${fmtFecha(a.fecha_vigencia)}</span></div>` : '<p class="ayuda">No se encontró autorización para lo solicitado.</p>'}</div>
+      <div class="bloque"><h4>Copago</h4>${c ? `<div class="kv">
+        <b>Condición</b><span>${esc(c.condicion || '—')}</span>
+        <b>Valor a recaudar</b><span class="destacado">${fmtPesos(c.valor_recaudo)}</span></div>` : '<p class="ayuda">Sin información de copago.</p>'}</div>
     </div>
-    ${caps?`<label>Capturas</label><div class="capturas">${caps}</div>`:''}
-    <label style="margin-top:14px">Resultado</label>
-    <pre>${t.resultado?JSON.stringify(t.resultado,null,2):'(sin resultado)'}</pre>`;
+    ${r.observaciones && r.observaciones.length ? `<ul class="obs">${r.observaciones.map((o) => `<li>${esc(o)}</li>`).join('')}</ul>` : ''}`;
+  } else if (t.estado !== 'fallido') {
+    cuerpo = `<pre>${esc(JSON.stringify(r, null, 2))}</pre>`;
+  }
+  const caps = (t.capturas || []).map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" alt="captura del portal"></a>`).join('');
+  box.innerHTML = `${cabecera}${cuerpo}
+    ${caps ? `<h4 class="sub">Capturas del portal</h4><div class="capturas">${caps}</div>` : ''}
+    <div class="meta"><span>${esc(nombreCliente(t.cliente))}</span><span>${esc(descParams(t.parametros))}</span><span>${fmtHora(t.creado)}</span>${t.duracion_ms ? `<span>${(t.duracion_ms / 1000).toFixed(0)} s</span>` : ''}<span class="mono">${esc(t.id)}</span></div>
+    <details><summary>Datos técnicos</summary><pre>${esc(JSON.stringify({ estado: t.estado, intentos: t.intentos, error: t.error, error_mensaje: t.error_mensaje, parametros: t.parametros, resultado: t.resultado }, null, 2))}</pre></details>`;
 }
 
-function cambiarTab(cual){
-  $('#tab-hist').classList.toggle('activo', cual==='hist');
-  $('#tab-det').classList.toggle('activo', cual==='det');
-  $('#panel-hist').hidden = cual!=='hist';
-  $('#panel-det').hidden = cual!=='det';
-}
-$('#tab-hist').onclick=()=>cambiarTab('hist');
-$('#tab-det').onclick=()=>cambiarTab('det');
-$('#f-cliente').onchange=onClienteCambia;
-$('#f-modulo').onchange=()=>onModuloCambia();
-$('#btn-ejecutar').onclick=ejecutar;
-$('#btn-refrescar').onclick=cargarHistorial;
-
-async function iniciar(){
-  await refrescarEstado();
-  try{ await cargarClientes(); await cargarHistorial(); }
-  catch(e){ if(e.message.includes('inválida')||!CLAVE) pedirClave(); }
-}
-if (!CLAVE) pedirClave(); else iniciar();
-setInterval(refrescarEstado, 8000);
+// ---------- Arranque ----------
+(async () => {
+  try { const { usuario } = await api('/yo'); entrar(usuario); }
+  catch { mostrarLogin(); }
+})();
 </script>
 </body>
 </html>

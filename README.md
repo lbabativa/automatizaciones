@@ -47,6 +47,12 @@ CRED_SANITAS_USUARIO=1019126688 CRED_SANITAS_PASSWORD=**** npm run cliente:crear
 
 El comando imprime la clave de API una sola vez. Para un segundo cliente de otro sector es el mismo comando con otros módulos y otras credenciales.
 
+Definir el acceso a la consola web `/admin` (un solo operador). La contraseña se guarda como hash, nunca en claro:
+
+```bash
+ADMIN_PASSWORD=**** npm run admin:password   # imprime ADMIN_PASSWORD_HASH=... para pegar en .env.local junto con ADMIN_USER
+```
+
 Arrancar en dos terminales:
 
 ```bash

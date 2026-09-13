@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { env } from './env.js';
 
 function claveMaestra(): Buffer {
@@ -43,4 +43,21 @@ export function huellaTrabajo(clienteSlug: string, modulo: string, parametros: R
     .sort()
     .reduce<Record<string, unknown>>((acc, k) => ((acc[k] = parametros[k]), acc), {});
   return createHash('sha256').update(`${clienteSlug}|${modulo}|${JSON.stringify(ordenado)}`).digest('hex');
+}
+
+/** Hash de contraseña con scrypt y sal aleatoria. Formato: scrypt$<sal>$<hash> en base64url. */
+export function hashPassword(password: string): string {
+  const sal = randomBytes(16);
+  const hash = scryptSync(password, sal, 32);
+  return `scrypt$${sal.toString('base64url')}$${hash.toString('base64url')}`;
+}
+
+/** Compara en tiempo constante una contraseña con un hash generado por hashPassword. */
+export function verificarPassword(password: string, almacenado: string): boolean {
+  const partes = almacenado.split('$');
+  if (partes.length !== 3 || partes[0] !== 'scrypt') return false;
+  const sal = Buffer.from(partes[1], 'base64url');
+  const esperado = Buffer.from(partes[2], 'base64url');
+  const calculado = scryptSync(password, sal, esperado.length);
+  return calculado.length === esperado.length && timingSafeEqual(calculado, esperado);
 }

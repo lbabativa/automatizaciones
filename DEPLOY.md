@@ -29,7 +29,9 @@ Cargar las variables de entorno del proyecto (produccion). La API NO necesita `M
 
 ```bash
 vercel env add MONGODB_URI production      # la cadena de Atlas con usuario/clave
-vercel env add ADMIN_KEY production        # clave de la consola /admin
+vercel env add ADMIN_USER production           # correo del operador de la consola /admin
+vercel env add ADMIN_PASSWORD_HASH production  # hash generado con: ADMIN_PASSWORD=... npm run admin:password
+vercel env add ADMIN_KEY production            # secreto que firma la sesion de la consola (y clave x-admin-key para curl)
 # opcionales:
 vercel env add SYNC_TIMEOUT_MS production   # p. ej. 90000
 vercel env add CACHE_HORAS production       # p. ej. 12
@@ -48,7 +50,7 @@ Verificar (reemplaza la URL por la que entrega Vercel):
 curl https://<tu-proyecto>.vercel.app/v1/salud
 ```
 
-La consola de operador queda en `https://<tu-proyecto>.vercel.app/admin`.
+La consola de operador queda en `https://<tu-proyecto>.vercel.app/admin`. Se entra con el correo y la contraseña del operador (`ADMIN_USER` / `ADMIN_PASSWORD_HASH`); la sesión dura 12 horas.
 
 Notas de Vercel:
 - Proyecto: `startias-projects/startia-automatizaciones`. URL pública de producción: `https://startia-automatizaciones.vercel.app`. Las URLs de cada despliegue (`*-startias-projects.vercel.app`) están protegidas y redirigen al SSO de Vercel; para probar sin sesión usa el alias de producción.

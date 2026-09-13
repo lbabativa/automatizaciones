@@ -1,29 +1,78 @@
 /**
- * Consola de operador de StartIA. Sirve el panel web y una API interna protegida
- * con ADMIN_KEY (independiente de las claves por cliente). Permite ejecutar
- * consultas de cualquier cliente, ver su historial y capturas, y ajustar la
- * configuración de los módulos por cliente.
+ * Consola de operador de StartIA. Sirve el panel web y una API interna que
+ * permite ejecutar consultas de cualquier cliente, ver su historial y capturas,
+ * y ajustar la configuración de los módulos por cliente.
+ *
+ * Acceso: un único operador definido por ADMIN_USER y ADMIN_PASSWORD_HASH
+ * (ver core/scripts/admin-password.ts). Al entrar se emite una cookie firmada
+ * con HMAC usando ADMIN_KEY como secreto. ADMIN_KEY también sirve como clave
+ * directa en el encabezado x-admin-key para integraciones o pruebas con curl.
  */
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Cliente, encolar, env, esperarResultado, rutaProyecto, Sesion, Trabajo, type ClienteDoc, type TrabajoDoc } from '@startia/core';
+import { Cliente, encolar, env, esperarResultado, rutaProyecto, Sesion, Trabajo, verificarPassword, type ClienteDoc, type TrabajoDoc } from '@startia/core';
 import { listarModulos, obtenerModulo } from '@startia/modulos';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import mongoose from 'mongoose';
 
 export const admin = new Hono();
 
-function claveOk(c: { req: { header: (n: string) => string | undefined; query: (n: string) => string | undefined } }): boolean {
-  let esperada: string;
+const COOKIE = 'startia_sesion';
+const SESION_HORAS = 12;
+
+function secreto(): string | null {
   try {
-    esperada = env('ADMIN_KEY');
+    return env('ADMIN_KEY');
   } catch {
-    return false; // sin ADMIN_KEY configurada, la consola queda cerrada
+    return null; // sin ADMIN_KEY configurada, la consola queda cerrada
   }
-  const dada = c.req.header('x-admin-key') ?? c.req.query('k');
-  return Boolean(dada) && dada === esperada;
 }
+
+function iguales(a: string, b: string): boolean {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ba.length === bb.length && timingSafeEqual(ba, bb);
+}
+
+function firmar(datos: string, clave: string): string {
+  return createHmac('sha256', clave).update(datos).digest('base64url');
+}
+
+/** Token de sesión: base64url({ u, exp }) + "." + HMAC. */
+function emitirSesion(usuario: string, clave: string): string {
+  const datos = Buffer.from(JSON.stringify({ u: usuario, exp: Date.now() + SESION_HORAS * 3600_000 })).toString('base64url');
+  return `${datos}.${firmar(datos, clave)}`;
+}
+
+function leerSesion(token: string | undefined, clave: string): string | null {
+  if (!token) return null;
+  const [datos, firma] = token.split('.');
+  if (!datos || !firma || !iguales(firma, firmar(datos, clave))) return null;
+  try {
+    const { u, exp } = JSON.parse(Buffer.from(datos, 'base64url').toString('utf8')) as { u: string; exp: number };
+    return typeof u === 'string' && typeof exp === 'number' && exp > Date.now() ? u : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Usuario autenticado: por cookie de sesión, o por ADMIN_KEY directa (encabezado o ?k=). */
+function usuarioActual(c: Context): string | null {
+  const clave = secreto();
+  if (!clave) return null;
+  const directa = c.req.header('x-admin-key') ?? c.req.query('k');
+  if (directa && iguales(directa, clave)) return 'admin-key';
+  return leerSesion(getCookie(c, COOKIE), clave);
+}
+
+function esHttps(c: Context): boolean {
+  return c.req.header('x-forwarded-proto') === 'https' || c.req.url.startsWith('https://');
+}
+
+const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // El HTML del panel es público (no expone datos); las rutas de datos exigen la clave.
 // Se busca junto al código (serverless) y desde la raíz del proyecto (local).
@@ -44,10 +93,53 @@ admin.get('/', async (c) => {
   return html ? c.html(html) : c.text('No se encontró api/public/panel.html', 500);
 });
 
+// Inicio de sesión del operador. Responde igual de lento si falla, para no dar pistas.
+admin.post('/api/login', async (c) => {
+  let cuerpo: { usuario?: string; password?: string };
+  try {
+    cuerpo = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON_INVALIDO' }, 400);
+  }
+  const clave = secreto();
+  let usuarioEsperado: string;
+  let hash: string;
+  try {
+    usuarioEsperado = env('ADMIN_USER');
+    hash = env('ADMIN_PASSWORD_HASH');
+  } catch {
+    return c.json({ error: 'SIN_CONFIGURAR', mensaje: 'Faltan ADMIN_USER o ADMIN_PASSWORD_HASH en el servidor' }, 503);
+  }
+  const usuario = String(cuerpo.usuario ?? '').trim().toLowerCase();
+  const password = String(cuerpo.password ?? '');
+  const ok = Boolean(clave) && usuario !== '' && iguales(usuario, usuarioEsperado.trim().toLowerCase()) && verificarPassword(password, hash);
+  if (!ok || !clave) {
+    await dormir(600);
+    return c.json({ error: 'CREDENCIALES_INVALIDAS', mensaje: 'Usuario o contraseña incorrectos' }, 401);
+  }
+  setCookie(c, COOKIE, emitirSesion(usuario, clave), {
+    httpOnly: true,
+    sameSite: 'Lax',
+    secure: esHttps(c),
+    path: '/admin',
+    maxAge: SESION_HORAS * 3600,
+  });
+  return c.json({ ok: true, usuario });
+});
+
+admin.post('/api/logout', (c) => {
+  deleteCookie(c, COOKIE, { path: '/admin' });
+  return c.json({ ok: true });
+});
+
 admin.use('/api/*', async (c, next) => {
-  if (!claveOk(c)) return c.json({ error: 'ADMIN_KEY_INVALIDA', mensaje: 'Falta o no coincide x-admin-key' }, 401);
+  const usuario = usuarioActual(c);
+  if (!usuario) return c.json({ error: 'NO_AUTENTICADO', mensaje: 'Inicie sesión en la consola' }, 401);
+  c.set('usuario' as never, usuario as never);
   await next();
 });
+
+admin.get('/api/yo', (c) => c.json({ usuario: usuarioActual(c) }));
 
 admin.get('/api/estado', async (c) => {
   const db = mongoose.connection.readyState === 1;
