@@ -80,6 +80,21 @@ aside h2 button{margin-left:auto}
 .origenes .chip button{padding:0 6px;color:var(--accent-ink)}
 .fila-origen{display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
 .fila-origen input{max-width:360px}
+.card h4{margin:18px 0 4px;font-size:13px;color:var(--ink-2)}
+label.linea{display:flex;gap:6px;align-items:center;font-weight:500;margin:8px 0;color:var(--ink)}
+.entrega-campos{border:0;padding:0;margin:0;min-width:0}
+.entrega-campos:disabled{opacity:.5}
+.campos-dos{display:flex;gap:22px;align-items:flex-end;flex-wrap:wrap}
+.linea-grupo{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.linea-grupo label.linea{margin:0}
+details.verificar{margin-top:8px}
+details.verificar summary{cursor:pointer;font-size:12.5px;color:var(--accent-ink);font-weight:600}
+pre.codigo{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-family:var(--mono);font-size:12px;overflow-x:auto;white-space:pre;margin:8px 0 0}
+.avisos{display:grid}
+.aviso-fila{display:grid;grid-template-columns:minmax(0,190px) 150px minmax(0,1fr) auto auto;gap:10px;align-items:center;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--line)}
+.aviso-fila:last-child{border-bottom:0}
+.aviso-fila .tenue{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aviso-fila .chip{overflow:hidden;text-overflow:ellipsis}
 </style>
 </head>
 <body>
@@ -128,6 +143,44 @@ aside h2 button{margin-left:auto}
         <label style="display:flex;gap:6px;align-items:center;margin-top:14px;font-weight:500"><input type="checkbox" id="c-sin-origen"> Permitir también llamadas desde servidores (sin dominio de origen)</label>
         <p class="ayuda">Desmárquelo para que la clave solo funcione desde los dominios de la lista. El dominio de origen lo pone el navegador y un programa puede falsificarlo: esto evita que otras páginas usen la clave, pero lo que protege el acceso sigue siendo guardarla en el servidor del cliente.</p>
         <div style="display:flex;gap:8px;margin-top:12px;align-items:center"><button id="btn-guardar-origenes">Guardar dominios</button><span class="ayuda" id="origenes-msg" style="margin:0"></span></div>
+      </div>
+
+      <div class="card" id="card-entrega">
+        <h3>Entrega de resultados</h3>
+        <p class="ayuda">Cómo recibe este cliente lo que hace el robot: un enlace de seguimiento para personas y un aviso firmado a su sistema. Lo que venga en cada llamada a la API (<span class="mono">callback_url</span>, <span class="mono">progreso</span>) tiene prioridad.</p>
+        <div class="fila-origen"><label for="en-alcance" style="margin:0">Aplica a</label><select id="en-alcance" style="max-width:420px"></select></div>
+        <label class="linea" id="en-general-caja" hidden><input type="checkbox" id="en-general"> Usar la configuración general del cliente</label>
+        <fieldset id="en-campos" class="entrega-campos">
+          <h4>Enlace de seguimiento de los lotes</h4>
+          <label class="linea"><input type="checkbox" id="en-progreso"> Crear un enlace de seguimiento para cada lote</label>
+          <div class="campos-dos">
+            <div><label for="en-dias">Vigencia en días</label><input id="en-dias" type="number" min="1" max="90" style="max-width:110px"></div>
+            <label class="linea"><input type="checkbox" id="en-enmascarar"> Mostrar documentos y nombres parcialmente</label>
+          </div>
+          <h4>Aviso al sistema del cliente</h4>
+          <label for="en-url">URL que recibe el aviso <span class="op">(https; vacía para no avisar)</span></label>
+          <input id="en-url" class="mono" placeholder="https://portal.cardioib.com/api/startia" autocomplete="off">
+          <div class="linea-grupo"><span class="ayuda" style="margin:0">Avisar</span><label class="linea"><input type="checkbox" id="en-ev-lote"> al terminar cada lote</label><label class="linea"><input type="checkbox" id="en-ev-consulta"> en cada consulta</label></div>
+        </fieldset>
+        <div style="display:flex;gap:8px;margin-top:14px;align-items:center;flex-wrap:wrap"><button id="btn-guardar-entrega">Guardar entrega</button><button class="sec" id="btn-probar-aviso">Enviar aviso de prueba</button><span class="ayuda" id="entrega-msg" style="margin:0"></span></div>
+        <h4>Clave de firma de los avisos</h4>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="mono" id="en-secreto">whsec_••••••••••••</span><button class="mini sec" id="btn-ver-secreto">Mostrar</button><button class="mini sec" id="btn-copiar-secreto" hidden>Copiar</button><button class="mini ghost" id="btn-rotar-secreto">Generar nueva</button></div>
+        <details class="verificar">
+          <summary>Cómo verifica el sistema del cliente que el aviso viene de StartIA</summary>
+          <p class="ayuda">Cada aviso es un POST JSON con los encabezados <span class="mono">x-startia-evento</span> (lote.terminado, lote.cancelado, consulta.completada, consulta.fallida o prueba), <span class="mono">x-startia-id</span> (único: sirve para no procesarlo dos veces), <span class="mono">x-startia-fecha</span> (segundos Unix) y <span class="mono">x-startia-firma</span>, que es <span class="mono">v1=</span> seguido del HMAC-SHA256 en hexadecimal de <span class="mono">fecha + "." + cuerpo</span> con la clave de firma. Rechace avisos de hace más de 5 minutos. Responda con un código 2xx en menos de 10 segundos; si no, se reintenta hasta 5 veces durante unos 30 minutos.</p>
+          <pre class="codigo">// Node.js (lea el cuerpo sin convertirlo, por ejemplo con express.raw)
+const crypto = require('crypto');
+const fecha = req.get('x-startia-fecha');
+const esperada = 'v1=' + crypto.createHmac('sha256', CLAVE_DE_FIRMA).update(fecha + '.' + req.body).digest('hex');
+const valida = esperada === req.get('x-startia-firma') &amp;&amp; Math.abs(Date.now() / 1000 - Number(fecha)) &lt; 300;</pre>
+          <pre class="codigo"># Python (Flask)
+import hmac, hashlib, time
+fecha = request.headers['x-startia-fecha']
+esperada = 'v1=' + hmac.new(CLAVE_DE_FIRMA.encode(), fecha.encode() + b'.' + request.get_data(), hashlib.sha256).hexdigest()
+valida = hmac.compare_digest(esperada, request.headers['x-startia-firma']) and abs(time.time() - int(fecha)) &lt; 300</pre>
+        </details>
+        <h4>Últimos avisos</h4>
+        <div id="en-avisos" class="avisos"></div>
       </div>
 
       <div class="card">
@@ -203,7 +256,7 @@ function abrir(slug) {
   $('#c-clave').innerHTML = CLAVES[c.slug] ? htmlClaveCompleta(CLAVES[c.slug]) : `<span class="mono">${esc(c.apiKeyPrefijo || 'rpa_' + c.slug + '_')}••••••••••••</span>`;
   if (CLAVES[c.slug]) $('#btn-copiar-clave').onclick = (e) => StartiaIntegracion.copiar(CLAVES[c.slug], e.currentTarget);
   $('#btn-disenar').href = '/admin/nueva?c=' + encodeURIComponent(c.slug) + (c.modulos.length ? '' : '&paso=portal');
-  pintarPortales(c); pintarModulos(c); pintarIntegracion(c); pintarOrigenes(c);
+  pintarPortales(c); pintarModulos(c); pintarIntegracion(c); pintarOrigenes(c); pintarEntrega(c);
 }
 
 function pintarPortales(c) {
@@ -272,6 +325,78 @@ $('#btn-guardar-origenes').onclick = async () => {
     await cargar();
     $('#origenes-msg').textContent = 'Dominios guardados. Pueden tardar hasta un minuto en aplicarse.';
   } catch (e) { $('#origenes-msg').textContent = e.message; }
+};
+
+// Entrega de resultados: enlace de seguimiento y aviso firmado, general o por automatización.
+const EVENTOS_AVISO = { 'lote.terminado': 'Lote terminado', 'lote.cancelado': 'Lote cancelado', 'consulta.completada': 'Consulta completada', 'consulta.fallida': 'Consulta fallida', prueba: 'Prueba' };
+const fechaCorta = (d) => new Date(d).toLocaleString('es-CO', { hour12: false, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+function pintarEntrega(c) {
+  const antes = $('#en-alcance').value;
+  $('#en-alcance').innerHTML = '<option value="">Todas las automatizaciones (configuración general)</option>' + c.modulos.map((m) => `<option value="${esc(m.nombre)}">${esc(m.nombre)}${m.entrega ? ' · propia' : ''}</option>`).join('');
+  if (antes && c.modulos.some((m) => m.nombre === antes)) $('#en-alcance').value = antes;
+  llenarEntrega(c);
+  $('#en-secreto').textContent = 'whsec_••••••••••••';
+  $('#btn-ver-secreto').textContent = 'Mostrar';
+  $('#btn-copiar-secreto').hidden = true;
+  cargarAvisos(c);
+}
+function llenarEntrega(c) {
+  const alcance = $('#en-alcance').value;
+  const propia = alcance ? (c.modulos.find((m) => m.nombre === alcance) || {}).entrega : null;
+  $('#en-general-caja').hidden = !alcance;
+  $('#en-general').checked = Boolean(alcance && !propia);
+  const e = propia || c.entrega;
+  $('#en-progreso').checked = e.progreso.activo;
+  $('#en-dias').value = e.progreso.dias;
+  $('#en-enmascarar').checked = e.progreso.enmascarar;
+  $('#en-url').value = e.aviso.url || '';
+  $('#en-ev-lote').checked = e.aviso.eventos.includes('lote');
+  $('#en-ev-consulta').checked = e.aviso.eventos.includes('consulta');
+  $('#en-campos').disabled = $('#en-general').checked;
+}
+function htmlAviso(a) {
+  const clase = a.estado === 'entregado' ? 'ok' : a.estado === 'fallido' ? 'crit' : 'warn';
+  const etiqueta = a.estado === 'entregado' ? `entregado · ${a.ultimo_codigo}` : a.estado === 'fallido' ? `falló · ${a.ultimo_error || a.ultimo_codigo || ''}` : a.estado === 'enviando' ? 'enviando' : a.intentos ? `reintento ${a.intentos + 1} de ${a.max_intentos}` : 'pendiente';
+  return `<div class="aviso-fila"><span class="chip ${clase}" title="${esc(a.ultimo_error || '')}">${esc(etiqueta)}</span><span>${esc(EVENTOS_AVISO[a.evento] || a.evento)}</span><span class="tenue mono" title="${esc(a.url)}">${esc(a.url.replace(/^https?:\/\//, ''))}</span><span class="tenue">${esc(fechaCorta(a.creado))}</span>${a.estado === 'entregado' || a.estado === 'enviando' ? '<span></span>' : `<button class="mini sec" data-reintentar="${esc(a.id)}">Reintentar</button>`}</div>`;
+}
+async function cargarAvisos(c) {
+  const box = $('#en-avisos');
+  try {
+    const { avisos } = await api(`/avisos?cliente=${encodeURIComponent(c.slug)}&limite=10`);
+    if (SEL !== c.slug) return;
+    box.innerHTML = avisos.length ? avisos.map(htmlAviso).join('') : '<p class="ayuda">Todavía no se han enviado avisos.</p>';
+    box.querySelectorAll('[data-reintentar]').forEach((b) => (b.onclick = async () => { b.disabled = true; try { await api(`/avisos/${b.dataset.reintentar}/reintentar`, { method: 'POST' }); } catch (e) { $('#entrega-msg').textContent = e.message; } cargarAvisos(c); }));
+  } catch (e) { box.innerHTML = `<p class="ayuda">${esc(e.message)}</p>`; }
+}
+$('#en-alcance').onchange = () => llenarEntrega(CLIENTES.find((x) => x.slug === SEL));
+$('#en-general').onchange = () => ($('#en-campos').disabled = $('#en-general').checked);
+$('#btn-guardar-entrega').onclick = async () => {
+  const eventos = [$('#en-ev-lote').checked && 'lote', $('#en-ev-consulta').checked && 'consulta'].filter(Boolean);
+  const cuerpo = { modulo: $('#en-alcance').value || null, usarGeneral: $('#en-general').checked, progreso: { activo: $('#en-progreso').checked, dias: Number($('#en-dias').value), enmascarar: $('#en-enmascarar').checked }, aviso: { url: $('#en-url').value.trim() || null, eventos } };
+  if (cuerpo.aviso.url && !eventos.length && !cuerpo.usarGeneral) { $('#entrega-msg').textContent = 'Elija cuándo avisar, o deje la URL vacía.'; return; }
+  try { await api(`/clientes/${SEL}/entrega`, { method: 'PUT', body: JSON.stringify(cuerpo) }); await cargar(); $('#entrega-msg').textContent = 'Entrega guardada.'; }
+  catch (e) { $('#entrega-msg').textContent = e.message; }
+};
+$('#btn-probar-aviso').onclick = async () => {
+  const b = $('#btn-probar-aviso'); b.disabled = true;
+  $('#entrega-msg').textContent = 'Enviando aviso de prueba…';
+  try {
+    const a = await api(`/clientes/${SEL}/entrega/prueba`, { method: 'POST', body: JSON.stringify({ url: $('#en-url').value.trim() || undefined, modulo: $('#en-alcance').value || undefined }) });
+    $('#entrega-msg').textContent = a.estado === 'entregado' ? `Entregado: el sistema del cliente respondió ${a.ultimo_codigo}.` : `No se entregó: ${a.ultimo_error || 'sin respuesta'}.`;
+    cargarAvisos(CLIENTES.find((x) => x.slug === SEL));
+  } catch (e) { $('#entrega-msg').textContent = e.message; }
+  finally { b.disabled = false; }
+};
+$('#btn-ver-secreto').onclick = async () => {
+  if ($('#btn-ver-secreto').textContent === 'Ocultar') { $('#en-secreto').textContent = 'whsec_••••••••••••'; $('#btn-ver-secreto').textContent = 'Mostrar'; $('#btn-copiar-secreto').hidden = true; return; }
+  try { const { secreto } = await api(`/clientes/${SEL}/entrega/secreto`); $('#en-secreto').textContent = secreto; $('#btn-ver-secreto').textContent = 'Ocultar'; $('#btn-copiar-secreto').hidden = false; }
+  catch (e) { $('#entrega-msg').textContent = e.message; }
+};
+$('#btn-copiar-secreto').onclick = (e) => StartiaIntegracion.copiar($('#en-secreto').textContent, e.currentTarget);
+$('#btn-rotar-secreto').onclick = async () => {
+  if (!confirm('La clave de firma actual dejará de valer de inmediato: el sistema del cliente debe actualizarla. ¿Generar una nueva?')) return;
+  try { const { secreto } = await api(`/clientes/${SEL}/entrega/secreto`, { method: 'POST' }); $('#en-secreto').textContent = secreto; $('#btn-ver-secreto').textContent = 'Ocultar'; $('#btn-copiar-secreto').hidden = false; $('#entrega-msg').textContent = 'Clave de firma nueva. Entréguela al equipo técnico del cliente.'; }
+  catch (e) { $('#entrega-msg').textContent = e.message; }
 };
 
 function pintarIntegracion(c) {

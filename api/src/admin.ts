@@ -48,8 +48,23 @@ import { Hono, type Context } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import mongoose from 'mongoose';
 import { olvidarPatrones, validarPatron } from './origenes.js';
+import {
+  asegurarSecreto,
+  Aviso,
+  crearAviso,
+  despacharAvisos,
+  entregaDe,
+  EVENTOS_AVISO,
+  generarSecretoAviso,
+  normalizarEntrega,
+  nuevoProgreso,
+  presentarAviso,
+  reintentarAviso,
+  validarUrlAviso,
+  type AvisoDoc,
+} from '@startia/core';
 import { aCsv, aXlsx, filasPlantilla, respuestaResultado, TIPO_XLSX } from './exportar.js';
-import { EntradaLote, fechaProgramada, presentarLote, validarFilas } from './lotes.js';
+import { EntradaLote, fechaProgramada, origenDespacho, presentarLote, sincronizarLote, validarFilas } from './lotes.js';
 
 export const admin = new Hono();
 
@@ -109,7 +124,7 @@ const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // El HTML de las páginas es público (no expone datos); las rutas de datos exigen sesión.
 // Se busca junto al código (serverless) y desde la raíz del proyecto (local).
-async function leerPagina(archivo: string): Promise<string | null> {
+export async function leerPagina(archivo: string): Promise<string | null> {
   const aquí = fileURLToPath(new URL('.', import.meta.url));
   const candidatos = [resolve(aquí, '..', 'public', archivo), resolve(aquí, 'public', archivo), rutaProyecto('api', 'public', archivo)];
   for (const ruta of candidatos) {
@@ -214,7 +229,8 @@ admin.get('/api/clientes', async (c) => {
       nit: cl.nit ?? null,
       origenesPermitidos: cl.origenesPermitidos ?? [],
       permitirSinOrigen: cl.permitirSinOrigen !== false,
-      modulos: cl.modulos.map((m) => ({ nombre: m.nombre, activo: m.activo, config: m.config })),
+      entrega: normalizarEntrega(cl.entrega),
+      modulos: cl.modulos.map((m) => ({ nombre: m.nombre, activo: m.activo, config: m.config, entrega: m.entrega ? normalizarEntrega(m.entrega) : null })),
       portales: Object.keys((cl.credenciales as Record<string, unknown>) ?? {}),
       /** Solo los nombres de los campos guardados por portal, nunca los valores. */
       credenciales: Object.fromEntries(Object.entries((cl.credenciales as Record<string, Record<string, string>>) ?? {}).map(([p, campos]) => [p, Object.keys(campos ?? {})])),
@@ -816,11 +832,13 @@ admin.post('/api/lotes', async (c) => {
     items: validos,
     nombre: entrada.data.nombre,
     origen: 'consola',
+    entrega: entregaDe(cliente, nombre),
     archivo: typeof cuerpo.archivo === 'string' ? cuerpo.archivo.slice(0, 200) : undefined,
     forzar: entrada.data.forzar,
     programadoPara: fechaProgramada(entrada.data.programar_para),
     cacheHoras: envNum('CACHE_HORAS', 12),
   });
+  if (lote.estado === 'terminado') await despacharAvisos({ desde: origenDespacho(), limite: 5 }).catch(() => undefined);
   return c.json(await presentarLote(lote), 201);
 });
 
@@ -838,7 +856,7 @@ const loteDeConsola = (id: string) => (mongoose.isValidObjectId(id) ? Lote.findB
 admin.get('/api/lotes/:id', async (c) => {
   const lote = await loteDeConsola(c.req.param('id'));
   if (!lote) return c.json({ error: 'NO_ENCONTRADO' }, 404);
-  return c.json(await presentarLote(lote, { desde: Number(c.req.query('desde') ?? 0), limite: Number(c.req.query('limite') ?? 100), estado: c.req.query('estado') }));
+  return c.json(await presentarLote(await sincronizarLote(lote), { desde: Number(c.req.query('desde') ?? 0), limite: Number(c.req.query('limite') ?? 100), estado: c.req.query('estado') }));
 });
 
 admin.post('/api/lotes/:id/cancelar', async (c) => {
@@ -863,6 +881,132 @@ admin.get('/api/modulos/:nombre/plantilla', async (c) => {
     return c.body(aCsv(filas), 200, { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="plantilla-${nombre}.csv"` });
   }
   return c.body(new Uint8Array(aXlsx(filas, 'Consultas')), 200, { 'content-type': TIPO_XLSX, 'content-disposition': `attachment; filename="plantilla-${nombre}.xlsx"` });
+});
+
+// ---------------------------------------------------------------------------------
+// Entrega de resultados: configuración por cliente, avisos y enlaces de seguimiento
+// ---------------------------------------------------------------------------------
+
+/** Guarda la entrega general del cliente o la de una automatización (usarGeneral la quita). */
+admin.put('/api/clientes/:slug/entrega', async (c) => {
+  const slug = c.req.param('slug');
+  let cuerpo: { modulo?: string | null; usarGeneral?: boolean; progreso?: { activo?: boolean; dias?: unknown; enmascarar?: boolean }; aviso?: { url?: string | null; eventos?: unknown } };
+  try {
+    cuerpo = await c.req.json();
+  } catch {
+    return c.json({ error: 'JSON_INVALIDO' }, 400);
+  }
+  const cliente = await Cliente.findOne({ slug });
+  if (!cliente) return c.json({ error: 'CLIENTE_NO_ENCONTRADO' }, 404);
+  const lista = cliente.get('modulos') as Array<{ nombre: string }>;
+  const indice = cuerpo.modulo ? lista.findIndex((m) => m.nombre === cuerpo.modulo) : -1;
+  if (cuerpo.modulo && indice < 0) return c.json({ error: 'MODULO_NO_HABILITADO', mensaje: 'Esa automatización no está en este cliente' }, 404);
+  if (cuerpo.modulo && cuerpo.usarGeneral) {
+    cliente.set(`modulos.${indice}.entrega`, undefined);
+    cliente.markModified('modulos');
+    await cliente.save();
+    return c.json({ ok: true, entrega: normalizarEntrega(cliente.get('entrega')) });
+  }
+  const url = typeof cuerpo.aviso?.url === 'string' ? cuerpo.aviso.url.trim() : '';
+  if (url) {
+    const problema = validarUrlAviso(url);
+    if (problema) return c.json({ error: 'AVISO_URL_INVALIDA', mensaje: `La URL del aviso ${problema}` }, 400);
+  }
+  const eventos = Array.isArray(cuerpo.aviso?.eventos) ? (cuerpo.aviso.eventos as unknown[]).map(String) : ['lote'];
+  if (eventos.some((e) => !(EVENTOS_AVISO as readonly string[]).includes(e))) return c.json({ error: 'EVENTO_INVALIDO', mensaje: `Eventos válidos: ${EVENTOS_AVISO.join(', ')}` }, 400);
+  if (url && !eventos.length) return c.json({ error: 'SIN_EVENTOS', mensaje: 'Elija cuándo avisar, o deje la URL vacía' }, 400);
+  const dias = Number(cuerpo.progreso?.dias ?? 7);
+  if (!Number.isInteger(dias) || dias < 1 || dias > 90) return c.json({ error: 'DIAS_INVALIDOS', mensaje: 'La vigencia del enlace va de 1 a 90 días' }, 400);
+  const entrega = normalizarEntrega({ progreso: { activo: cuerpo.progreso?.activo !== false, dias, enmascarar: cuerpo.progreso?.enmascarar !== false }, aviso: { url: url || null, eventos } });
+  if (cuerpo.modulo) {
+    cliente.set(`modulos.${indice}.entrega`, entrega);
+    cliente.markModified('modulos');
+  } else {
+    cliente.set('entrega', entrega);
+    cliente.markModified('entrega');
+  }
+  await cliente.save();
+  if (entrega.aviso.url) await asegurarSecreto(slug);
+  return c.json({ ok: true, entrega });
+});
+
+/** Clave de firma de los avisos (la crea si no existe). Solo para el operador. */
+admin.get('/api/clientes/:slug/entrega/secreto', async (c) => {
+  const slug = c.req.param('slug');
+  if (!(await Cliente.exists({ slug }))) return c.json({ error: 'CLIENTE_NO_ENCONTRADO' }, 404);
+  return c.json({ secreto: await asegurarSecreto(slug) });
+});
+
+/** Genera una clave de firma nueva; la anterior deja de valer de inmediato. */
+admin.post('/api/clientes/:slug/entrega/secreto', async (c) => {
+  const secreto = generarSecretoAviso();
+  const r = await Cliente.updateOne({ slug: c.req.param('slug') }, { $set: { avisoSecreto: secreto } });
+  if (!r.matchedCount) return c.json({ error: 'CLIENTE_NO_ENCONTRADO' }, 404);
+  return c.json({ secreto });
+});
+
+/** Envía ya mismo un aviso de prueba firmado a la URL indicada o a la configurada. */
+admin.post('/api/clientes/:slug/entrega/prueba', async (c) => {
+  const slug = c.req.param('slug');
+  let cuerpo: { url?: string; modulo?: string } = {};
+  try {
+    cuerpo = await c.req.json();
+  } catch {
+    /* sin cuerpo: se usa la configurada */
+  }
+  const cliente = await Cliente.findOne({ slug }).lean<ClienteDoc>();
+  if (!cliente) return c.json({ error: 'CLIENTE_NO_ENCONTRADO' }, 404);
+  const url = (cuerpo.url || (cuerpo.modulo ? entregaDe(cliente, cuerpo.modulo) : normalizarEntrega(cliente.entrega)).aviso.url || '').trim();
+  if (!url) return c.json({ error: 'SIN_URL', mensaje: 'Escriba la URL que recibe el aviso' }, 400);
+  const problema = validarUrlAviso(url);
+  if (problema) return c.json({ error: 'AVISO_URL_INVALIDA', mensaje: `La URL del aviso ${problema}` }, 400);
+  const aviso = await crearAviso({
+    clienteSlug: slug,
+    evento: 'prueba',
+    url,
+    maxIntentos: 1,
+    cuerpo: { evento: 'prueba', cliente: slug, mensaje: 'Aviso de prueba de StartIA. Si la firma es válida, la integración está lista.' },
+  });
+  await despacharAvisos({ desde: origenDespacho(), ids: [aviso._id], limite: 1 });
+  return c.json(presentarAviso((await Aviso.findById(aviso._id).lean<AvisoDoc>()) as AvisoDoc));
+});
+
+admin.get('/api/avisos', async (c) => {
+  const filtro: Record<string, unknown> = {};
+  const cliente = c.req.query('cliente');
+  const lote = c.req.query('lote');
+  if (cliente) filtro.clienteSlug = cliente;
+  if (lote && mongoose.isValidObjectId(lote)) filtro.loteId = lote;
+  const limite = Math.min(Math.max(Number(c.req.query('limite') ?? 20) || 20, 1), 100);
+  const avisos = await Aviso.find(filtro).sort({ createdAt: -1 }).limit(limite).lean<AvisoDoc[]>();
+  return c.json({ avisos: avisos.map(presentarAviso) });
+});
+
+admin.post('/api/avisos/:id/reintentar', async (c) => {
+  const id = c.req.param('id');
+  if (!mongoose.isValidObjectId(id)) return c.json({ error: 'ID_INVALIDO' }, 400);
+  const aviso = await reintentarAviso(id);
+  if (!aviso) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  await despacharAvisos({ desde: origenDespacho(), ids: [aviso._id], limite: 1 });
+  return c.json(presentarAviso((await Aviso.findById(id).lean<AvisoDoc>()) as AvisoDoc));
+});
+
+/** Crea (o reemplaza) el enlace de seguimiento de un lote con la vigencia configurada para el cliente. */
+admin.post('/api/lotes/:id/progreso', async (c) => {
+  const lote = await loteDeConsola(c.req.param('id'));
+  if (!lote) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  const cliente = await Cliente.findOne({ slug: lote.clienteSlug }).lean<ClienteDoc>();
+  const { progreso } = cliente ? entregaDe(cliente, lote.modulo) : normalizarEntrega(null);
+  await Lote.updateOne({ _id: lote._id }, { $set: { progreso: nuevoProgreso(progreso.dias, progreso.enmascarar) } });
+  return c.json(await presentarLote((await Lote.findById(lote._id).lean<LoteDoc>()) as LoteDoc));
+});
+
+/** Revoca el enlace de seguimiento: deja de funcionar de inmediato. */
+admin.delete('/api/lotes/:id/progreso', async (c) => {
+  const lote = await loteDeConsola(c.req.param('id'));
+  if (!lote) return c.json({ error: 'NO_ENCONTRADO' }, 404);
+  await Lote.updateOne({ _id: lote._id }, { $unset: { progreso: '' } });
+  return c.json(await presentarLote((await Lote.findById(lote._id).lean<LoteDoc>()) as LoteDoc));
 });
 
 // Sirve una captura local (evidencias/ o inspeccion/) para verla en el panel.

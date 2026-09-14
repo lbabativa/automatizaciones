@@ -34,9 +34,15 @@ const LoteSchema = new Schema(
     items: { type: [ItemLoteSchema], default: [] },
     terminadoEn: { type: Date },
     canceladoEn: { type: Date },
+    /** Enlace de seguimiento: { token, venceEn, enmascarar }. */
+    progreso: { type: Schema.Types.Mixed },
+    /** Aviso al servicio del cliente: { url, eventos }. */
+    aviso: { type: Schema.Types.Mixed },
   },
   { timestamps: true, collection: 'lotes' },
 );
+
+LoteSchema.index({ 'progreso.token': 1 }, { sparse: true });
 
 export type LoteDoc = InferSchemaType<typeof LoteSchema> & { _id: mongoose.Types.ObjectId; createdAt: Date; updatedAt: Date };
 

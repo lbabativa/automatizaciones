@@ -11,6 +11,7 @@ import mongoose from 'mongoose';
 import { huellaTrabajo } from './crypto.js';
 import { Lote, type LoteDoc } from './modelos/Lote.js';
 import { Trabajo, type TrabajoDoc } from './modelos/Trabajo.js';
+import { avisarLote, nuevoProgreso, type EntregaConfig } from './avisos.js';
 
 export const MAX_ITEMS_LOTE = 1000;
 /** Las consultas sueltas (prioridad 0) pasan delante de las de un lote. */
@@ -33,6 +34,8 @@ export interface NuevoLote {
   /** Si es futura, los trabajos esperan en estado programado hasta esa hora. */
   programadoPara?: Date | null;
   cacheHoras: number;
+  /** Entrega resuelta para este lote: crea el enlace de seguimiento y guarda a dónde avisar. */
+  entrega?: EntregaConfig;
 }
 
 export interface ContadoresLote {
@@ -107,6 +110,8 @@ export async function crearLote(d: NuevoLote): Promise<LoteDoc> {
     programadoPara: programado ?? undefined,
     total: items.length,
     items,
+    ...(d.entrega?.progreso.activo ? { progreso: nuevoProgreso(d.entrega.progreso.dias, d.entrega.progreso.enmascarar) } : {}),
+    ...(d.entrega?.aviso.url ? { aviso: { url: d.entrega.aviso.url, eventos: d.entrega.aviso.eventos } } : {}),
   });
   try {
     if (nuevos.length) await Trabajo.insertMany(nuevos);
@@ -151,9 +156,17 @@ export async function actualizarLote(loteId: Id): Promise<LoteDoc | null> {
   const lote = await Lote.findById(loteId).select('items.trabajoId items.desdeCache estado terminadoEn').lean<LoteDoc>();
   if (!lote) return null;
   const { contadores, estado } = await calcularAvance(lote);
-  const cambios: Record<string, unknown> = { contadores, estado };
-  if (estado === 'terminado' && !lote.terminadoEn) cambios.terminadoEn = new Date();
-  return Lote.findByIdAndUpdate(loteId, { $set: cambios }, { returnDocument: 'after' }).lean<LoteDoc>();
+  const actualizado = await Lote.findByIdAndUpdate(loteId, { $set: { contadores, estado } }, { returnDocument: 'after' }).lean<LoteDoc>();
+  if (actualizado && estado === 'terminado' && !actualizado.terminadoEn) {
+    // Solo quien marca el cierre crea el aviso, aunque dos procesos recalculen a la vez.
+    const r = await Lote.updateOne({ _id: loteId, terminadoEn: null }, { $set: { terminadoEn: new Date() } });
+    if (r.modifiedCount) {
+      const cerrado = await Lote.findById(loteId).lean<LoteDoc>();
+      if (cerrado) await avisarLote(cerrado, 'lote.terminado').catch(() => undefined);
+      return cerrado;
+    }
+  }
+  return actualizado;
 }
 
 export interface ItemDeLote {
@@ -226,6 +239,9 @@ export async function cancelarLote(loteId: Id): Promise<LoteDoc | null> {
       { $set: { estado: 'fallido', error: { codigo: 'CANCELADO', mensaje: 'El lote se canceló antes de consultar esta fila' }, terminadoEn: ahora } },
     );
     await Lote.updateOne({ _id: lote._id }, { $set: { estado: 'cancelado', canceladoEn: ahora } });
+    const cancelado = await actualizarLote(lote._id);
+    if (cancelado) await avisarLote(cancelado, 'lote.cancelado').catch(() => undefined);
+    return cancelado;
   }
   return actualizarLote(lote._id);
 }

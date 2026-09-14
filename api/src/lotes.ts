@@ -1,5 +1,16 @@
-/** Validación y presentación de lotes, compartidas por la API pública y la consola. */
-import { calcularAvance, itemsDeLote, MAX_ITEMS_LOTE, tiempoRestanteMs, type LoteDoc, type Modulo } from '@startia/core';
+/** Validación y presentación de lotes, compartidas por la API pública, la consola y la página de seguimiento. */
+import {
+  actualizarLote,
+  calcularAvance,
+  despacharAvisos,
+  enmascararItem,
+  itemsDeLote,
+  MAX_ITEMS_LOTE,
+  tiempoRestanteMs,
+  urlPublica,
+  type LoteDoc,
+  type Modulo,
+} from '@startia/core';
 import { z } from 'zod';
 
 export const EntradaLote = z.object({
@@ -11,6 +22,10 @@ export const EntradaLote = z.object({
   forzar: z.boolean().default(false),
   /** Fecha y hora ISO 8601 con zona, por ejemplo 2026-09-14T21:00:00-05:00. */
   programar_para: z.iso.datetime({ offset: true }).optional(),
+  /** URL que recibe los avisos de este lote, en vez de la configurada para el cliente. */
+  callback_url: z.string().trim().max(2000).optional(),
+  /** Crear o no el enlace de seguimiento, en vez de lo configurado para el cliente. */
+  progreso: z.boolean().optional(),
 });
 
 /** Valida cada fila con el esquema del módulo; devuelve las válidas (con valores por defecto) y los errores por índice. */
@@ -31,8 +46,27 @@ export function fechaProgramada(texto?: string): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** Lote para la API: estado, contadores y tiempo estimado; con `filas`, también las filas paginadas. */
-export async function presentarLote(lote: LoteDoc, filas?: { desde?: number; limite?: number; estado?: string }) {
+/** Desde dónde se despachan los avisos cuando los envía la API. */
+export const origenDespacho = () => (process.env.VERCEL ? 'nube' : 'api-local');
+
+/**
+ * Si el lote cambió de estado sin que se guardara (por ejemplo, lo procesó un robot sin actualizar),
+ * lo recalcula; al cerrarse así, despacha su aviso de inmediato.
+ */
+export async function sincronizarLote(lote: LoteDoc): Promise<LoteDoc> {
+  if (lote.estado === 'terminado' || lote.estado === 'cancelado') return lote;
+  const avance = await calcularAvance(lote);
+  if (avance.estado === lote.estado) return lote;
+  const actualizado = (await actualizarLote(lote._id)) ?? lote;
+  if (actualizado.estado === 'terminado') await despacharAvisos({ desde: origenDespacho(), limite: 5 }).catch(() => undefined);
+  return actualizado;
+}
+
+/**
+ * Lote para la API: estado, contadores, tiempo estimado, enlace de seguimiento y aviso; con `filas`,
+ * también las filas paginadas (enmascaradas si se pide).
+ */
+export async function presentarLote(lote: LoteDoc, filas?: { desde?: number; limite?: number; estado?: string }, opciones: { enmascarar?: boolean } = {}) {
   const detalle = filas ? await itemsDeLote(lote, filas) : null;
   const guardados = lote.contadores as Record<string, number> | undefined;
   const cerrado = lote.estado === 'terminado' || lote.estado === 'cancelado';
@@ -42,6 +76,8 @@ export async function presentarLote(lote: LoteDoc, filas?: { desde?: number; lim
       ? { contadores: guardados, estado: lote.estado, pendientesUnicos: 0 }
       : await calcularAvance(lote);
   const restante = avance.estado === 'terminado' || avance.estado === 'cancelado' ? 0 : await tiempoRestanteMs(lote, avance.pendientesUnicos);
+  const progreso = lote.progreso as { token?: string; venceEn?: Date } | undefined;
+  const aviso = lote.aviso as { url?: string; eventos?: string[] } | undefined;
   return {
     id: String(lote._id),
     nombre: lote.nombre ?? null,
@@ -58,6 +94,12 @@ export async function presentarLote(lote: LoteDoc, filas?: { desde?: number; lim
     creado: lote.createdAt,
     terminado_en: lote.terminadoEn ?? null,
     cancelado_en: lote.canceladoEn ?? null,
-    ...(detalle ? { items: detalle.items, pagina: { total: detalle.total, desde: detalle.desde, limite: detalle.limite } } : {}),
+    progreso_url: progreso?.token ? `${urlPublica()}/seguimiento/${progreso.token}` : null,
+    progreso_vence: progreso?.token ? (progreso.venceEn ?? null) : null,
+    aviso_url: aviso?.url ?? null,
+    aviso_eventos: aviso?.url ? (aviso.eventos ?? []) : [],
+    ...(detalle
+      ? { items: opciones.enmascarar ? detalle.items.map(enmascararItem) : detalle.items, pagina: { total: detalle.total, desde: detalle.desde, limite: detalle.limite } }
+      : {}),
   };
 }

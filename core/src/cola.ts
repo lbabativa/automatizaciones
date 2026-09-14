@@ -1,4 +1,5 @@
 import { huellaTrabajo } from './crypto.js';
+import { avisarConsulta } from './avisos.js';
 import { actualizarLote } from './lotes.js';
 import { Trabajo, type ErrorTrabajo, type TrabajoDoc } from './modelos/Trabajo.js';
 
@@ -60,6 +61,8 @@ export async function completar(id: TrabajoDoc['_id'], resultado: unknown, captu
       $unset: { error: '' },
     },
   );
+  // Primero el aviso de la consulta y después el del lote, para que lleguen en ese orden.
+  await avisarConsulta(id).catch(() => undefined);
   if (doc?.loteId) await actualizarLote(doc.loteId).catch(() => undefined);
 }
 
@@ -85,7 +88,10 @@ export async function fallar(id: TrabajoDoc['_id'], error: ErrorTrabajo, captura
           },
     },
   );
-  if (!puedeReintentar && doc?.loteId) await actualizarLote(doc.loteId).catch(() => undefined);
+  if (!puedeReintentar) {
+    await avisarConsulta(id).catch(() => undefined);
+    if (doc?.loteId) await actualizarLote(doc.loteId).catch(() => undefined);
+  }
   return puedeReintentar;
 }
 

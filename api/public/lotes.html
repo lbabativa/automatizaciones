@@ -119,6 +119,13 @@ td .err{color:var(--crit)}
 details.card summary{cursor:pointer;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:700}
 pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;padding:10px 12px;overflow:auto;font-family:var(--mono);font-size:12.5px;margin:10px 0 0;white-space:pre}
 .vacio{color:var(--muted);text-align:center;padding:40px 10px}
+.enlace{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.enlace code{font-family:var(--mono);font-size:12.5px;background:var(--paper-2);border:1px solid var(--line);border-radius:6px;padding:5px 9px;word-break:break-all}
+a.boton.mini{padding:4px 10px;font-size:12.5px;border-radius:6px}
+.card h4{margin:16px 0 6px;font-size:13px;color:var(--ink-2)}
+.aviso-fila{display:grid;grid-template-columns:minmax(0,190px) 150px minmax(0,1fr) auto auto;gap:10px;align-items:center;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--line)}
+.aviso-fila:last-child{border-bottom:0}
+.aviso-fila .tenue{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:980px){.app{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}.dos,.mapeo{grid-template-columns:1fr}.contenido{padding:18px}}
 </style>
 </head>
@@ -208,6 +215,13 @@ pre{background:var(--paper-2);border:1px solid var(--line);border-radius:8px;pad
           <a class="boton sec" id="d-csv" href="#">Descargar CSV</a>
           <button class="peligro" id="d-cancelar">Cancelar pendientes</button>
         </div>
+      </div>
+
+      <div class="card" id="d-entrega">
+        <h3>Entrega al cliente</h3>
+        <div id="d-progreso"></div>
+        <h4>Avisos a su sistema</h4>
+        <div id="d-avisos"></div>
       </div>
 
       <div class="card">
@@ -620,7 +634,42 @@ function pintarDetalle(l) {
   $('#d-tabla').innerHTML = `<thead><tr><th>Fila</th>${params.map((p) => `<th>${esc(p)}</th>`).join('')}<th>Estado</th><th>Resultado</th></tr></thead><tbody>${l.items.map((it) => `<tr><td class="mono">${it.indice + 1}</td>${params.map((p) => `<td class="mono">${esc(it.parametros[p] ?? '')}</td>`).join('')}<td><span class="pill ${esc(it.estado)}">${esc(ETQ_FILA[it.estado] || it.estado)}</span>${it.desde_cache ? ' <span class="chip" title="Resultado de una consulta de las últimas 12 horas">caché</span>' : ''}</td><td>${htmlResultado(it)}</td></tr>`).join('') || `<tr><td colspan="${params.length + 3}" class="vacio">No hay filas con este filtro.</td></tr>`}</tbody>`;
   $('#d-mas').hidden = l.pagina.total <= l.items.length;
   $('#d-pag').textContent = `${l.items.length} de ${plural(l.pagina.total, 'fila', 'filas')}`;
+  pintarEntregaLote(l);
   $('#d-api').textContent = `curl "${location.origin}/v1/lotes/${l.id}" -H "x-api-key: SU_CLAVE_DE_API"\ncurl "${location.origin}/v1/lotes/${l.id}/resultado?formato=xlsx" -H "x-api-key: SU_CLAVE_DE_API" -o resultado.xlsx`;
+}
+
+// Enlace de seguimiento y avisos del lote.
+const EVENTOS_AVISO = { 'lote.terminado': 'Lote terminado', 'lote.cancelado': 'Lote cancelado', 'consulta.completada': 'Consulta completada', 'consulta.fallida': 'Consulta fallida', prueba: 'Prueba' };
+function pintarEntregaLote(l) {
+  const box = $('#d-progreso');
+  const vence = l.progreso_vence ? new Date(l.progreso_vence) : null;
+  const vencido = Boolean(vence && vence.getTime() < Date.now());
+  box.innerHTML = l.progreso_url
+    ? `<p class="ayuda" style="margin:0 0 8px">Enlace de seguimiento para compartir con el cliente${vence ? ` · ${vencido ? 'venció' : 'vence'} ${esc(fmtFecha(vence))}` : ''}. Quien lo tenga ve el avance y descarga los resultados, sin entrar a la consola.</p>
+       <div class="enlace"><code id="d-enlace">${esc(l.progreso_url)}</code><button class="mini" data-copiar>Copiar</button><a class="boton sec mini" href="${esc(l.progreso_url)}" target="_blank" rel="noopener">Abrir</a>${vencido ? '<button class="mini sec" data-generar>Generar otro</button>' : ''}<button class="mini ghost" data-revocar>Revocar</button></div>`
+    : `<p class="ayuda" style="margin:0 0 8px">Este lote no tiene enlace de seguimiento.</p><button class="mini sec" data-generar>Crear enlace de seguimiento</button>`;
+  const copiar = box.querySelector('[data-copiar]');
+  if (copiar) copiar.onclick = async () => { try { await navigator.clipboard.writeText(l.progreso_url); copiar.textContent = 'Copiado'; setTimeout(() => (copiar.textContent = 'Copiar'), 1400); } catch { mensaje('No se pudo copiar; seleccione el enlace y cópielo.'); } };
+  const generar = box.querySelector('[data-generar]');
+  if (generar) generar.onclick = async () => { try { await api(`/lotes/${encodeURIComponent(l.id)}/progreso`, { method: 'POST' }); await refrescarLote(); } catch (e) { mensaje(esc(e.message)); } };
+  const revocar = box.querySelector('[data-revocar]');
+  if (revocar) revocar.onclick = async () => { if (!confirm('El enlace dejará de funcionar de inmediato para quien lo tenga. ¿Revocarlo?')) return; try { await api(`/lotes/${encodeURIComponent(l.id)}/progreso`, { method: 'DELETE' }); await refrescarLote(); } catch (e) { mensaje(esc(e.message)); } };
+  if (!l.aviso_url) { $('#d-avisos').innerHTML = `<p class="ayuda" style="margin:0">Este lote no avisa al sistema del cliente. Se configura en la <a href="/admin/clientes?c=${encodeURIComponent(l.cliente)}">ficha del cliente</a>, en Entrega de resultados.</p>`; return; }
+  cargarAvisosLote(l);
+}
+async function cargarAvisosLote(l) {
+  const box = $('#d-avisos');
+  try {
+    const { avisos } = await api(`/avisos?lote=${encodeURIComponent(l.id)}&limite=20`);
+    if (SEL !== l.id) return;
+    const destino = `<p class="ayuda" style="margin:0 0 6px">A <span class="mono">${esc(l.aviso_url)}</span> · ${l.aviso_eventos.includes('consulta') ? 'en cada consulta y al terminar' : 'al terminar el lote'}.</p>`;
+    box.innerHTML = destino + (avisos.length ? avisos.map((a) => {
+      const clase = a.estado === 'entregado' ? 'ok' : a.estado === 'fallido' ? 'crit' : 'warn';
+      const etiqueta = a.estado === 'entregado' ? `entregado · ${a.ultimo_codigo}` : a.estado === 'fallido' ? `falló · ${a.ultimo_error || a.ultimo_codigo || ''}` : a.estado === 'enviando' ? 'enviando' : a.intentos ? `reintento ${a.intentos + 1} de ${a.max_intentos}` : 'pendiente';
+      return `<div class="aviso-fila"><span class="chip ${clase}" title="${esc(a.ultimo_error || '')}">${esc(etiqueta)}</span><span>${esc(EVENTOS_AVISO[a.evento] || a.evento)}</span><span class="tenue">${a.historial.length ? esc(`último intento desde ${a.historial[a.historial.length - 1].desde}`) : ''}</span><span class="tenue">${esc(fmtFecha(a.creado))}</span>${a.estado === 'entregado' || a.estado === 'enviando' ? '<span></span>' : `<button class="mini sec" data-reintentar="${esc(a.id)}">Reintentar</button>`}</div>`;
+    }).join('') : '<p class="ayuda" style="margin:0">Todavía no hay avisos: se envían cuando el lote termina.</p>');
+    box.querySelectorAll('[data-reintentar]').forEach((b) => (b.onclick = async () => { b.disabled = true; try { await api(`/avisos/${b.dataset.reintentar}/reintentar`, { method: 'POST' }); } catch (e) { mensaje(esc(e.message)); } cargarAvisosLote(l); }));
+  } catch (e) { box.innerHTML = `<p class="ayuda">${esc(e.message)}</p>`; }
 }
 
 // ---------------------------------------------------------------------------------

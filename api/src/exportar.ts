@@ -3,7 +3,7 @@
  * XLSX. El XLSX se arma a mano (zip con zlib), sin dependencias.
  */
 import { crc32, deflateRawSync } from 'node:zlib';
-import { itemsDeLote, MAX_ITEMS_LOTE, type ItemDeLote, type LoteDoc, type ParametroDef } from '@startia/core';
+import { enmascararItem, itemsDeLote, MAX_ITEMS_LOTE, type ItemDeLote, type LoteDoc, type ParametroDef } from '@startia/core';
 import type { Context } from 'hono';
 
 export type Celda = string | number | boolean | null | undefined;
@@ -188,9 +188,9 @@ const nombreArchivo = (lote: LoteDoc) => {
 };
 
 /** Respuesta de descarga con los resultados del lote (`?formato=xlsx` por defecto, o `csv`). */
-export async function respuestaResultado(c: Context, lote: LoteDoc) {
+export async function respuestaResultado(c: Context, lote: LoteDoc, opciones: { enmascarar?: boolean } = {}) {
   const { items } = await itemsDeLote(lote, { limite: MAX_ITEMS_LOTE });
-  const filas = filasResultado(items);
+  const filas = filasResultado(opciones.enmascarar ? items.map(enmascararItem) : items);
   const archivo = nombreArchivo(lote);
   if (c.req.query('formato') === 'csv') {
     return c.body(aCsv(filas), 200, { 'content-type': 'text/csv; charset=utf-8', 'content-disposition': `attachment; filename="${archivo}.csv"`, 'cache-control': 'no-store' });

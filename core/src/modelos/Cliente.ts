@@ -5,6 +5,8 @@ const ModuloClienteSchema = new Schema(
     nombre: { type: String, required: true },
     activo: { type: Boolean, default: true },
     config: { type: Schema.Types.Mixed, default: {} },
+    /** Entrega de resultados propia de esta automatización; si falta, se usa la general del cliente. */
+    entrega: { type: Schema.Types.Mixed },
   },
   { _id: false },
 );
@@ -25,6 +27,10 @@ const ClienteSchema = new Schema(
     origenesPermitidos: { type: [String], default: [] },
     /** Aceptar llamadas sin encabezado Origin (desde servidores). */
     permitirSinOrigen: { type: Boolean, default: true },
+    /** Entrega de resultados: enlace de seguimiento de los lotes y aviso al servicio del cliente. */
+    entrega: { type: Schema.Types.Mixed },
+    /** Clave con la que se firman los avisos (HMAC). No se lista con el cliente. */
+    avisoSecreto: { type: String, select: false },
   },
   { timestamps: true, collection: 'clientes' },
 );

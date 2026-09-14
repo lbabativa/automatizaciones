@@ -1,14 +1,14 @@
-import { buscarEnCache, buscarEnCurso, cancelarLote, conectarDb, crearLote, encolar, envNum, esperarResultado, Lote, Trabajo, type LoteDoc, type TrabajoDoc } from '@startia/core';
+import { buscarEnCache, buscarEnCurso, cancelarLote, Cliente, conectarDb, crearLote, despacharAvisos, encolar, entregaDe, envNum, esperarResultado, Lote, Trabajo, validarUrlAviso, type LoteDoc, type TrabajoDoc } from '@startia/core';
 import { listarModulosDisponibles, resolverModulo } from '@startia/modulos';
 import { Hono, type Context } from 'hono';
 import { logger } from 'hono/logger';
 import mongoose from 'mongoose';
 import { z } from 'zod';
-import { admin } from './admin.js';
+import { admin, leerPagina } from './admin.js';
 import { autenticar, type Variables } from './auth.js';
 import { cors } from './origenes.js';
 import { respuestaResultado } from './exportar.js';
-import { EntradaLote, fechaProgramada, presentarLote, validarFilas } from './lotes.js';
+import { EntradaLote, fechaProgramada, origenDespacho, presentarLote, sincronizarLote, validarFilas } from './lotes.js';
 
 export const app = new Hono<{ Variables: Variables }>();
 app.use(logger());
@@ -85,6 +85,10 @@ app.post('/v1/:portal/:modulo', async (c) => {
   const { modo, callback_url, forzar, prioridad, ...resto } = { ...(cuerpo as Record<string, unknown>) };
   const reservados = Reservados.safeParse({ modo, callback_url, forzar, prioridad });
   if (!reservados.success) return c.json({ error: 'PARAMETROS_INVALIDOS', detalles: z.treeifyError(reservados.error) }, 400);
+  if (reservados.data.callback_url) {
+    const problema = validarUrlAviso(reservados.data.callback_url);
+    if (problema) return c.json({ error: 'CALLBACK_INVALIDO', mensaje: `callback_url ${problema}` }, 400);
+  }
   const parametros = modulo.parametros.safeParse(resto);
   if (!parametros.success) return c.json({ error: 'PARAMETROS_INVALIDOS', detalles: z.treeifyError(parametros.error) }, 400);
   const params = parametros.data as Record<string, unknown>;
@@ -145,6 +149,14 @@ app.post('/v1/:portal/:modulo/lote', async (c) => {
   if (errores.length) {
     return c.json({ error: 'ITEMS_INVALIDOS', mensaje: `${errores.length} fila(s) con parámetros inválidos; no se creó el lote`, detalles: errores.slice(0, 200) }, 400);
   }
+  // Entrega: la configurada para el cliente y la automatización, con lo que venga en la llamada encima.
+  const entrega = entregaDe(cliente, nombre);
+  if (entrada.data.progreso !== undefined) entrega.progreso.activo = entrada.data.progreso;
+  if (entrada.data.callback_url) {
+    const problema = validarUrlAviso(entrada.data.callback_url);
+    if (problema) return c.json({ error: 'CALLBACK_INVALIDO', mensaje: `callback_url ${problema}` }, 400);
+    entrega.aviso = { url: entrada.data.callback_url, eventos: entrega.aviso.eventos.length ? entrega.aviso.eventos : ['lote'] };
+  }
   const lote = await crearLote({
     clienteSlug: cliente.slug,
     modulo: nombre,
@@ -155,7 +167,10 @@ app.post('/v1/:portal/:modulo/lote', async (c) => {
     forzar: entrada.data.forzar,
     programadoPara: fechaProgramada(entrada.data.programar_para),
     cacheHoras: envNum('CACHE_HORAS', 12),
+    entrega,
   });
+  // Un lote resuelto por completo con el caché ya terminó: su aviso sale de inmediato.
+  if (lote.estado === 'terminado') await despacharAvisos({ desde: origenDespacho(), limite: 5 }).catch(() => undefined);
   const p = await presentarLote(lote);
   return c.json({ ...p, estado_url: `/v1/lotes/${p.id}`, resultado_url: `/v1/lotes/${p.id}/resultado?formato=xlsx` }, 202);
 });
@@ -170,7 +185,7 @@ async function loteDelCliente(c: Context<{ Variables: Variables }>): Promise<Lot
 app.get('/v1/lotes/:id', async (c) => {
   const lote = await loteDelCliente(c);
   if (!lote) return c.json({ error: 'NO_ENCONTRADO' }, 404);
-  return c.json(await presentarLote(lote, { desde: Number(c.req.query('desde') ?? 0), limite: Number(c.req.query('limite') ?? 100), estado: c.req.query('estado') }));
+  return c.json(await presentarLote(await sincronizarLote(lote), { desde: Number(c.req.query('desde') ?? 0), limite: Number(c.req.query('limite') ?? 100), estado: c.req.query('estado') }));
 });
 
 app.post('/v1/lotes/:id/cancelar', async (c) => {
@@ -184,6 +199,62 @@ app.get('/v1/lotes/:id/resultado', async (c) => {
   const lote = await loteDelCliente(c);
   if (!lote) return c.json({ error: 'NO_ENCONTRADO' }, 404);
   return respuestaResultado(c, lote);
+});
+
+// ---------------------------------------------------------------------------------
+// Avisos y página de seguimiento
+// ---------------------------------------------------------------------------------
+
+let despachoEnCurso = false;
+
+/**
+ * Despacha los avisos pendientes desde la API. No recibe datos ni necesita clave: solo envía lo
+ * que ya está en la bandeja de salida, y cada aviso se reclama de forma atómica. El worker lo
+ * llama al terminar consultas; si no responde, envía desde el PC.
+ */
+app.post('/internal/avisos/despachar', async (c) => {
+  if (despachoEnCurso) return c.json({ ok: true, omitido: true }, 202);
+  despachoEnCurso = true;
+  try {
+    return c.json({ ok: true, ...(await despacharAvisos({ desde: origenDespacho() })) });
+  } finally {
+    despachoEnCurso = false;
+  }
+});
+
+const CABECERAS_SEGUIMIENTO = { 'cache-control': 'no-store', 'referrer-policy': 'no-referrer', 'x-robots-tag': 'noindex, nofollow' };
+
+async function loteDeSeguimiento(token: string): Promise<{ lote: LoteDoc | null; vencido: boolean }> {
+  if (!/^[A-Za-z0-9_-]{16,64}$/.test(token)) return { lote: null, vencido: false };
+  const lote = await Lote.findOne({ 'progreso.token': token }).lean<LoteDoc>();
+  const vence = (lote?.progreso as { venceEn?: Date } | undefined)?.venceEn;
+  return { lote, vencido: Boolean(vence && new Date(vence).getTime() < Date.now()) };
+}
+
+/** Página pública de seguimiento de un lote; el enlace es el permiso y vence. */
+app.get('/seguimiento/:token', async (c) => {
+  const html = await leerPagina('seguimiento.html');
+  return html ? c.html(html, 200, CABECERAS_SEGUIMIENTO) : c.text('No se encontró api/public/seguimiento.html', 500);
+});
+
+app.get('/seguimiento/:token/datos', async (c) => {
+  const { lote, vencido } = await loteDeSeguimiento(c.req.param('token'));
+  if (!lote) return c.json({ error: 'NO_ENCONTRADO', mensaje: 'Este enlace de seguimiento no existe o fue revocado.' }, 404, CABECERAS_SEGUIMIENTO);
+  if (vencido) return c.json({ error: 'VENCIDO', mensaje: 'Este enlace de seguimiento venció. Pida uno nuevo a quien se lo compartió.' }, 410, CABECERAS_SEGUIMIENTO);
+  const progreso = lote.progreso as { enmascarar?: boolean; venceEn?: Date };
+  const enmascarar = progreso.enmascarar !== false;
+  const cliente = await Cliente.findOne({ slug: lote.clienteSlug }).select('nombre').lean<{ nombre?: string }>();
+  const datos = await presentarLote(await sincronizarLote(lote), { limite: 1000, estado: c.req.query('estado') }, { enmascarar });
+  // A quien tiene el enlace no se le muestra a dónde avisa el sistema del cliente.
+  const { aviso_url: _url, aviso_eventos: _eventos, ...visibles } = datos;
+  return c.json({ ...visibles, cliente_nombre: cliente?.nombre ?? lote.clienteSlug, enmascarado: enmascarar, vence: progreso.venceEn ?? null }, 200, CABECERAS_SEGUIMIENTO);
+});
+
+app.get('/seguimiento/:token/resultado', async (c) => {
+  const { lote, vencido } = await loteDeSeguimiento(c.req.param('token'));
+  if (!lote) return c.json({ error: 'NO_ENCONTRADO' }, 404, CABECERAS_SEGUIMIENTO);
+  if (vencido) return c.json({ error: 'VENCIDO' }, 410, CABECERAS_SEGUIMIENTO);
+  return respuestaResultado(c, lote, { enmascarar: (lote.progreso as { enmascarar?: boolean }).enmascarar !== false });
 });
 
 function presentar(t: TrabajoDoc) {

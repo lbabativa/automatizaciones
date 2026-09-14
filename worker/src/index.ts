@@ -15,13 +15,16 @@ import {
   Configuracion,
   conectarDb,
   descifrar,
+  despacharAvisos,
   env,
   envNum,
   ErrorNegocio,
   ErrorSesion,
   fallar,
+  hayAvisosPendientes,
   reclamar,
   rescatarHuerfanos,
+  urlPublica,
   type ClienteDoc,
   type TrabajoDoc,
 } from '@startia/core';
@@ -104,42 +107,49 @@ async function procesar(trabajo: TrabajoDoc): Promise<void> {
     await guardarSesion(cliente.slug, modulo.portal, contexto, 'automatica');
     await completar(trabajo._id, resultado, capturas);
     log(`Trabajo ${id} completado (${modulo.nombre}, ${cliente.slug})`);
-    await notificar(trabajo, 'completado', resultado, capturas);
   } catch (e) {
     const err = e as Error;
     await capturar('error');
     if (err instanceof ErrorNegocio) {
       await fallar(trabajo._id, { codigo: err.codigo, mensaje: err.message }, capturas, false);
       log(`Trabajo ${id} sin resultado: ${err.codigo}`);
-      await notificar(trabajo, 'fallido', { codigo: err.codigo, mensaje: err.message }, capturas);
     } else if (err instanceof ErrorSesion) {
       await invalidarSesion(cliente.slug, modulo.portal);
       const reencolado = await fallar(trabajo._id, { codigo: 'SESION_INVALIDA', mensaje: err.message }, capturas, true);
       log(`Trabajo ${id}: sesión inválida. ${reencolado ? 'Se reintentará.' : err.message}`);
-      if (!reencolado) await notificar(trabajo, 'fallido', { codigo: 'SESION_INVALIDA', mensaje: err.message }, capturas);
     } else {
       const reencolado = await fallar(trabajo._id, { codigo: err.name === 'ErrorPortal' ? 'PORTAL_INESPERADO' : 'ERROR_INTERNO', mensaje: err.message }, capturas, true);
       log(`Trabajo ${id} falló: ${err.message}. ${reencolado ? 'Se reintentará.' : 'Sin más intentos.'}`);
-      if (!reencolado) await notificar(trabajo, 'fallido', { codigo: 'PORTAL_INESPERADO', mensaje: err.message }, capturas);
     }
   } finally {
     await page.close().catch(() => undefined);
   }
 }
 
-/** Avisa al callback_url del cliente cuando el trabajo termina. Fallar aquí no afecta el trabajo. */
-async function notificar(trabajo: TrabajoDoc, estado: 'completado' | 'fallido', carga: unknown, capturas: string[]): Promise<void> {
-  if (!trabajo.callbackUrl) return;
+let despachando = false;
+
+/**
+ * Envía los avisos pendientes (los crean `completar` y `fallar` en el núcleo). Primero pide a la
+ * API en la nube que los despache, para que salgan desde Internet y no desde la red de la
+ * clínica; si la nube no responde, los envía desde este PC. Nunca bloquea el procesamiento.
+ */
+async function dispararAvisos(): Promise<void> {
+  if (despachando) return;
+  despachando = true;
   try {
-    const r = await fetch(trabajo.callbackUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id: String(trabajo._id), modulo: trabajo.modulo, estado, parametros: trabajo.parametros, [estado === 'completado' ? 'resultado' : 'error']: carga, capturas }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!r.ok) log(`Callback ${trabajo.callbackUrl} respondió ${r.status}`);
+    if (!(await hayAvisosPendientes())) return;
+    try {
+      const r = await fetch(`${urlPublica()}/internal/avisos/despachar`, { method: 'POST', signal: AbortSignal.timeout(60_000) });
+      if (r.ok && !(await hayAvisosPendientes())) return;
+    } catch {
+      /* la nube no respondió: se envían desde aquí */
+    }
+    const { enviados, fallidos } = await despacharAvisos({ desde: 'pc' });
+    if (enviados || fallidos) log(`Avisos enviados desde este PC: ${enviados} entregados, ${fallidos} con error`);
   } catch (e) {
-    log(`Callback ${trabajo.callbackUrl} falló: ${(e as Error).message}`);
+    log(`No se pudieron despachar los avisos: ${(e as Error).message}`);
+  } finally {
+    despachando = false;
   }
 }
 
@@ -173,6 +183,7 @@ async function principal(): Promise<void> {
       modulosSoportados = await nombresModulosSoportados().catch(() => modulosSoportados);
       await latido();
       ultimaLista = Date.now();
+      void dispararAvisos();
     }
     // Las grabaciones necesitan ventana visible: solo las toma un worker con HEADLESS=false.
     if (!HEADLESS) {
@@ -190,6 +201,7 @@ async function principal(): Promise<void> {
     }
     log(`Trabajo ${String(trabajo._id)} (${trabajo.modulo}, ${trabajo.clienteSlug}) intento ${trabajo.intentos}`);
     await procesar(trabajo);
+    void dispararAvisos();
     const pausa = PAUSA_MIN + Math.random() * Math.max(0, PAUSA_MAX - PAUSA_MIN);
     await dormir(pausa);
   }
