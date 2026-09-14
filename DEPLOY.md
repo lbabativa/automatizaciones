@@ -68,9 +68,15 @@ npm install
 npm run worker
 ```
 
-O con el acceso directo `worker\start-worker.cmd`.
+O con doble clic en `worker\start-worker.cmd`, que revisa Node.js, `.env.local` y las dependencias, deja la ventana titulada "Robot StartIA" y reinicia el robot a los 30 segundos si se cierra por un error (Ctrl+C lo detiene sin reiniciar).
 
-**Importante:** el worker debe correr en una sesión de escritorio abierta, no como servicio oculto. Colsanitas exige un login manual la primera vez (protección Radware) y eso necesita una ventana visible. Para que arranque solo al iniciar sesión en Windows:
+**Acceso directo con icono:** doble clic en `worker\crear-acceso-directo.cmd`. Crea "Robot StartIA" en el escritorio con el icono de StartIA y pregunta si también debe arrancar solo al iniciar sesión en Windows (lo pone en la carpeta de inicio). Equivale a:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File worker\crear-acceso-directo.ps1 -AlIniciarWindows
+```
+
+**Importante:** el worker debe correr en una sesión de escritorio abierta, no como servicio oculto. Colsanitas exige un login manual la primera vez (protección Radware) y eso necesita una ventana visible. Para que arranque solo al iniciar sesión en Windows, responda S en `worker\crear-acceso-directo.cmd`, o hágalo a mano:
 
 1. Abrir la carpeta de inicio: tecla Windows + R, escribir `shell:startup`, Enter.
 2. Crear ahí un acceso directo a `C:\StartIA\automatizaciones\worker\start-worker.cmd`.

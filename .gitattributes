@@ -1,0 +1,5 @@
+# Scripts de Windows: siempre con fin de linea CRLF (cmd.exe falla con goto y etiquetas en LF).
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.ico binary
